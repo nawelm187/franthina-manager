@@ -8,11 +8,12 @@
 
 import { APP_CONFIG } from '../config.js';
 import { LocalStorageAdapter } from './LocalStorageAdapter.js';
+import { CloudStorageAdapter } from './CloudStorageAdapter.js';
 
 const adapters = {
   localStorage: () => new LocalStorageAdapter(),
+  supabase: () => new CloudStorageAdapter(),
   // indexedDB: () => new IndexedDBAdapter(),   // próxima fase — ver docs/module-ingredients.md
-  // supabase:  () => new SupabaseAdapter(),    // fase SaaS
   // rest:      () => new RestApiAdapter(),     // fase multiusuario/multisucursal
 };
 
