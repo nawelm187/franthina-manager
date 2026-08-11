@@ -13,6 +13,7 @@ import { confirmAction } from '../../components/confirm.js';
 import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError } from '../../core/errors.js';
+import { logAction } from '../../core/auditLog.js';
 import { debounce, formatCurrency, focusNewRow, normalizeForSearch } from '../../core/utils.js';
 import { productService } from '../products/product.service.js';
 import { compatibleUnitsFor, areCompatibleUnits } from '../../core/units.js';
@@ -130,6 +131,7 @@ function bindRowActions(container, recipes, ingredients, allRecipes, costsById) 
       if (!confirmed) return;
       try {
         await recipeService.remove(recipe.id);
+        logAction({ action: 'Eliminó', entity: 'receta', entityId: recipe.id, details: recipe.name });
         showToast({ type: 'success', message: `"${recipe.name}" fue eliminada.` });
         render(null, container);
       } catch (err) {
