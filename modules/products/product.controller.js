@@ -14,6 +14,7 @@ import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError } from '../../core/errors.js';
 import { debounce, formatCurrency, normalizeForSearch, normalizeImageUrl } from '../../core/utils.js';
+import { logAction } from '../../core/auditLog.js';
 
 let sortState = { key: null, direction: 'asc' };
 let searchTerm = '';
@@ -131,6 +132,7 @@ function bindRowActions(container, currentProducts, recipes, allProducts) {
       if (!confirmed) return;
       try {
         await productService.remove(product.id);
+        logAction({ action: 'Eliminó', entity: 'producto', entityId: product.id, details: product.name });
         showToast({ type: 'success', message: `"${product.name}" fue eliminado.` });
         render(null, container);
       } catch (err) {
@@ -181,6 +183,14 @@ function openProductForm(container, product, recipes, allProducts) {
           try {
             if (isEdit) {
               await productService.update(product.id, payload);
+              if (product.sellPrice !== payload.sellPrice) {
+                logAction({
+                  action: 'Modificó precio',
+                  entity: 'producto',
+                  entityId: product.id,
+                  details: `${payload.name}: ${formatCurrency(product.sellPrice)} → ${formatCurrency(payload.sellPrice)}`,
+                });
+              }
               showToast({ type: 'success', message: `"${payload.name}" fue actualizado.` });
             } else {
               await productService.create(payload);
