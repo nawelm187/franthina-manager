@@ -10,6 +10,7 @@ import { openModal } from '../../components/modal.js';
 import { confirmAction } from '../../components/confirm.js';
 import { showToast } from '../../components/toast.js';
 import { handleError, ValidationError } from '../../core/errors.js';
+import { logAction } from '../../core/auditLog.js';
 import { debounce, normalizeForSearch } from '../../core/utils.js';
 
 let searchTerm = '';
@@ -77,6 +78,7 @@ function bindRowActions(container, displayedCustomers, allCustomers) {
       if (!confirmed) return;
       try {
         await customerService.remove(customer.id);
+        logAction({ action: 'Eliminó', entity: 'cliente', entityId: customer.id, details: customer.name });
         showToast({ type: 'success', message: `"${customer.name}" fue eliminado.` });
         render(null, container);
       } catch (err) {
