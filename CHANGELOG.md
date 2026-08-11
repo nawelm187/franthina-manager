@@ -1,5 +1,191 @@
 # Changelog
 
+## [Sin versionar] — v0.27, primer paso: visibilidad de usuarios
+Primera parte de "Usuarios y roles" del roadmap, a propósito acotada: hoy
+hay un solo usuario (vos), y todavía no se probó el login básico — así que
+en vez de reescribir de una todas las políticas de seguridad para
+restringir por rol (alto riesgo sin verificar la base), se agrega solo lo
+que ya aporta valor ahora: **saber quién tiene acceso**. La restricción
+real por rol (que un Empleado no pueda ver costos, por ejemplo) queda para
+cuando el login esté confirmado y haya más de una persona usando la app.
+
+### Agregado
+- `franthina_schema_v027_profiles.sql`: tabla `profiles` (un perfil por
+  usuario, con un rol), con creación automática al registrarse — 100%
+  aditivo, no toca ninguna tabla ni política existente.
+- `core/userProfiles.js`, y una tarjeta nueva "👥 Usuarios con acceso" en
+  Configuración: lista de emails + rol de quienes tienen una cuenta. Solo
+  aparece si la app está usando Supabase (con localStorage no hay usuarios
+  reales que listar).
+
+## [Sin versionar] — v0.26: migrar los datos de prueba del celular a la nube
+Herramienta para subir a Supabase lo que haya quedado cargado en el
+celular desde antes de conectar la nube — así no hay que volver a cargar
+productos de prueba a mano.
+
+### Agregado
+- `core/legacyLocalMigration.js`: lee los datos que quedaron en localStorage
+  de antes de pasar a Supabase (única excepción en todo el proyecto a la
+  regla de "nunca leer un adapter de storage directo" — acá es intencional,
+  porque el adapter activo ahora es Supabase y no puede ver esos datos).
+- Configuración: nueva tarjeta "☁️ Migrar datos de este celular a la nube",
+  que solo aparece si hay datos viejos para migrar (no molesta si ya se
+  migró, o si nunca hubo datos locales). Un solo botón, con confirmación
+  explícita que avisa si va a reemplazar algo que ya se haya cargado
+  directamente en la nube.
+
+### Nota técnica
+Reusa `restoreBackup()` (`core/backup.js`) tal cual, sin duplicar la lógica
+de restauración — solo se agregó una forma nueva de *armar* el objeto de
+backup, leyendo localStorage en vez de la fachada de storage.
+
+## [0.25.0] — Base de datos en la nube (Supabase) + login de administración
+Salto grande: los datos dejan de vivir solo en el navegador (localStorage) y
+pasan a una base de datos real en la nube, con acceso a `/admin` protegido
+por sesión de verdad. Se adelantó la nube antes que el login (v0.24 original
+del roadmap) porque un login "real" no se puede hacer bien sin un backend de
+autenticación de por medio — construirlos en el orden inverso hubiera dejado
+v0.24 a medio camino.
+
+### Agregado
+- `core/supabaseClient.js`, `core/auth.js`: cliente y sesión de Supabase,
+  compartidos por toda la app.
+- `core/storage/CloudStorageAdapter.js`: misma interfaz que
+  `LocalStorageAdapter` — ningún `*.service.js` de los 13 módulos tuvo que
+  cambiar para pasar a la nube, tal como preveía la arquitectura original
+  (`core/storage/index.js` ya tenía el punto de extensión comentado).
+- `modules/login/index.js`: pantalla de acceso (email + contraseña, mostrar/
+  ocultar contraseña, mensajes de error traducidos). Sin registro público
+  a propósito — el usuario de administración se crea a mano en el panel de
+  Supabase, nunca desde la app.
+- `core/router.js`: soporte de "guard" (`setGuard`) — bloquea la carga de
+  cualquier ruta de `/admin` sin sesión iniciada ANTES de que el módulo
+  protegido llegue a pedir datos, en vez de bloquear después.
+- Botón "Cerrar sesión" en el pie del menú de administración.
+- `franthina_schema.sql`, `franthina_schema_fix.sql`: esquema completo (13
+  tablas + valores de configuración), con seguridad a nivel de fila (RLS):
+  todo requiere sesión, salvo crear un pedido/cliente desde la tienda
+  (checkout de invitado) y leer el catálogo público de productos — a través
+  de una función dedicada que nunca expone costo, notas ni stock exacto.
+
+### Cambiado
+- `modules/products/product.service.js`: nuevo método `listPublic()` — la
+  tienda ya no lee la tabla real de productos (protegida), sino la función
+  seguray `get_public_products()`. `store-catalog` y `store-cart` actualizados
+  para usarlo.
+- `store-cart.controller.js`: la búsqueda de cliente repetido por teléfono/
+  email ahora tolera no tener permiso de lectura (un visitante sin sesión
+  solo puede crear clientes, no leerlos) — si no puede buscar, crea uno
+  nuevo directamente en vez de romper el checkout.
+- `app.js`: las migraciones de datos ahora corren solo una vez y solo con
+  sesión iniciada — antes corrían para cualquier visitante, lo que rompería
+  la tienda pública contra una base con permisos reales.
+
+### Nota
+`APP_CONFIG.storageAdapter` quedó en `'supabase'`. Si algo no anda, volver a
+`'localStorage'` en `core/config.js` restaura el comportamiento anterior al
+instante mientras se investiga.
+
+## [Sin versionar] — v0.23, primera pasada: Ventas, Pedidos, Compras, Producción
+Primera parte de la auditoría UX completa (v0.23 del roadmap). Se midió el
+flujo real de cada acción frecuente contra el ideal ("elegir + confirmar,
+sin pasos de más") y se revisaron mensajes, valores por defecto y accesos
+directos. Producción y la carga de una venta simple ya estaban al nivel
+ideal (receta/producto → confirmar, con valores por defecto sensatos) — no
+necesitaron cambios. Se encontraron y corrigieron 2 problemas reales:
+
+### Corregido
+- **Bug de precio pegado al producto anterior** (Ventas, Pedidos, Compras):
+  al elegir un producto/ingrediente en una fila del carrito, el precio se
+  autocompletaba — pero si después se cambiaba la elección por otra, el
+  precio viejo quedaba pegado en vez de actualizarse, mostrando un total
+  incorrecto sin ningún aviso. Ahora el precio siempre sigue a la elección
+  actual.
+- **Fricción real en Pedidos**: el cliente es obligatorio para crear un
+  pedido, pero si todavía no estaba cargado no había forma de agregarlo sin
+  cancelar, ir a Clientes, crearlo, y volver a empezar el pedido de cero
+  (perdiendo los productos ya cargados). Ahora hay un botón "➕ Nuevo
+  cliente" al lado del selector, que abre un alta rápida (nombre + teléfono)
+  sin salir del formulario del pedido — el cliente recién creado queda
+  seleccionado al toque.
+
+## [Sin versionar] — Rediseño de la vista del cliente
+Pase de diseño enfocado en la experiencia de compra (catálogo, carrito,
+checkout) — la vista de administración no cambió.
+
+### Corregido
+- La tienda le mostraba al cliente el nombre interno de la herramienta
+  ("Franthina Manager") en vez del nombre del negocio. Ahora usa
+  `APP_CONFIG.storeName` ("Franthina Repostería"), separado de `appName`
+  (que sigue siendo el nombre del admin) — se ve en el encabezado, el pie,
+  el título de la pestaña del navegador y el hero.
+- Bug de especificidad CSS: `.product-card__media span` (pensado para el
+  ícono de reemplazo) sin querer también le pegaba a la etiqueta de
+  categoría de la tarjeta, agrandándola de más. Se separó en su propia
+  clase (`.product-card__media-icon`) en vez de forzarlo con `!important`.
+
+### Agregado
+- **Borde festoneado** (`.scallop-divider`) entre el hero y el catálogo —
+  la firma visual de la tienda, evoca el borde de una fuente de pastelería
+  o la tapa de una caja de repostería.
+- Hero con acento en tipografía script ("Franthina") sobre el título
+  principal, con un fondo cálido en degradé.
+- Tarjetas de producto: etiqueta de categoría, ícono de reemplazo con
+  fondo degradé (en vez de un emoji suelto), elevación e ingreso animado
+  y escalonado al cargar la página (respeta `prefers-reduced-motion` del
+  sistema operativo, no solo el interruptor manual de Configuración — ver
+  abajo).
+- **Selector de cantidad "− n +"** (`components/qtyStepper.js`), en
+  reemplazo del campo numérico suelto, tanto en el catálogo como en el
+  carrito — más cómodo de tocar en el celular.
+- Carrito: miniatura de cada producto, total destacado en un bloque de
+  color de marca, formulario de datos agrupado en una tarjeta con
+  encabezado.
+- `design-system/tokens.css`: además del interruptor manual de "Animaciones
+  reducidas" en Configuración, ahora también se respeta
+  `prefers-reduced-motion` del sistema operativo aunque la persona nunca
+  haya entrado a esa pantalla.
+
+## [0.22.0] — Integración con WhatsApp
+Siguiente paso del roadmap: conectar la tienda y los Pedidos con WhatsApp,
+sin necesitar ninguna API ni backend — son links `wa.me` (WhatsApp
+Click-to-Chat): el navegador abre WhatsApp con el número y el mensaje ya
+cargados, y una persona lo confirma y lo manda a mano. Nunca se envía nada
+automáticamente.
+
+### Agregado
+- `core/whatsapp.js`: helper `buildWhatsAppLink(telefono, mensaje)`.
+- **Tienda pública**: al confirmar una compra, si el negocio configuró su
+  WhatsApp (ver abajo), aparece un botón "Enviar pedido por WhatsApp" con
+  el resumen (productos, total, fecha de entrega, nombre) ya redactado.
+- **`/admin/pedidos`**: cada fila de la tabla tiene un botón 💬 para
+  escribirle al cliente por WhatsApp (si tiene teléfono cargado), con un
+  mensaje que resume los productos, el total y el estado del pedido.
+- **Configuración**: nueva sección "Datos del negocio" para cargar el
+  número de WhatsApp una sola vez (`core/state.js`,
+  `business.whatsappNumber`, persistido igual que las preferencias de
+  accesibilidad).
+
+## [Sin versionar] — Fotos de producto con vista previa, filtro de categorías colapsable
+### Corregido
+- **Fotos que no cargaban en la tienda**: la causa más común es pegar el
+  link "Compartir" de Google Drive, que apunta a una página de vista previa
+  y no a la imagen en sí — un `<img src>` no puede mostrar eso. Ahora
+  `core/utils.js` (`normalizeImageUrl`) detecta ese patrón de URL y lo
+  convierte automáticamente al formato que sí funciona, tanto al guardar el
+  producto como al mostrar fotos que ya se habían guardado con el link viejo.
+
+### Agregado
+- `modules/products/`: vista previa en vivo de la foto en el formulario —
+  apenas se pega un link se intenta cargar ahí mismo, y si no es una imagen
+  válida se avisa al toque (antes había que guardar el producto y entrar a
+  la tienda para descubrirlo). También se sumó ayuda explícita sobre qué
+  tipo de link funciona (Imgur, o el link "para ver" de Drive — no el de
+  "Compartir").
+- Filtro de categorías de la tienda ahora colapsado por defecto: se ve solo
+  un chip con la categoría actual ("Todas ▾"); al tocarlo se despliegan
+  todas las categorías, y elegir una vuelve a colapsar la lista.
+
 ## [0.19.0] — Tienda pública + separación Tienda / Administración
 Primera versión con una tienda pública de verdad, separada del sistema de
 gestión. Nada del admin existente se tocó ni se eliminó — se movió detrás

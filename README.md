@@ -11,9 +11,11 @@ Clientes, Ventas, Caja, Pedidos, Proveedores, Compras y Reportes) más, desde
 v0.19, una **tienda pública** con catálogo, carrito y checkout, separada del
 admin: todo el sistema de gestión vive ahora en `/admin`, y `/` es la tienda
 que ve cualquier visitante. Un pedido hecho desde la tienda crea un Pedido
-real, visible en `/admin/pedidos`. Con esto el núcleo comercial completo del
-brief original está cubierto — ver `docs/ROADMAP.md` para lo que queda
-(login/roles reales, multiusuario, SaaS, integraciones).
+real, visible en `/admin/pedidos`. Desde v0.22, tanto la tienda como
+`/admin/pedidos` tienen integración con WhatsApp (links `wa.me`, sin API ni
+backend) para mandar el resumen del pedido con un toque. Con esto el núcleo
+comercial completo del brief original está cubierto — ver `docs/ROADMAP.md`
+para lo que queda (login/roles reales, multiusuario, SaaS, integraciones).
 
 **Importante**: `/admin` todavía no tiene login — es una URL más, no un área
 protegida. No compartas ese link públicamente hasta que exista autenticación

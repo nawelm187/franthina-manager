@@ -19,13 +19,15 @@
 
 import { ROUTES, NAV_ITEMS, APP_CONFIG } from './core/config.js';
 import { Router } from './core/router.js';
-import { withBase, stripBase } from './core/basePath.js';
+import { withBase } from './core/basePath.js';
 import { store } from './core/state.js';
 import { eventBus, EVENTS } from './core/eventBus.js';
 import { installGlobalErrorHandling } from './core/errors.js';
 import { runMigrations } from './core/storage/migrations.js';
-import { initToastListener } from './components/toast.js';
+import { initToastListener, showToast } from './components/toast.js';
 import { storeCart } from './core/storeCart.js';
+import { auth } from './core/auth.js';
+import { renderLogin } from './modules/login/index.js';
 
 installGlobalErrorHandling();
 
@@ -35,10 +37,21 @@ const STORE_NAV_ITEMS = [
 
 /** @type {HTMLElement} nodo estable, nunca se recrea — ver comentario de arriba */
 let mainContentEl;
+/** 'admin' | 'store' | 'login' | null — null solo antes del primer render. */
 let currentZone = null;
+let migrationsRan = false;
 
 function zoneOf(pathname) {
   return pathname.startsWith('/admin') ? 'admin' : 'store';
+}
+
+/** Zona que corresponde mostrar AHORA MISMO, cruzando la ruta pedida con la
+ *  sesión: una ruta de /admin sin sesión iniciada siempre resuelve a
+ *  'login', sin importar qué zona sea la ruta en sí. */
+function resolveZone(pathname) {
+  const zone = zoneOf(pathname);
+  if (zone === 'admin' && !auth.getCachedSession()) return 'login';
+  return zone;
 }
 
 function slotMainContent(container) {
@@ -64,13 +77,21 @@ function buildAdminChrome() {
         <a class="nav-link nav-link--muted" href="${withBase(ROUTES.STORE_HOME)}" data-link data-route="${ROUTES.STORE_HOME}">
           <span class="nav-link__icon" aria-hidden="true">🛍️</span> Ver tienda online
         </a>
+        <button type="button" class="nav-link nav-link--muted" id="btn-logout" style="width:100%; text-align:left; background:none; border:none; cursor:pointer;">
+          <span class="nav-link__icon" aria-hidden="true">🚪</span> Cerrar sesión
+        </button>
       </nav>
       <div id="main-content-slot"></div>
     </div>
   `;
   slotMainContent(document.querySelector('.app-shell'));
   mainContentEl.className = 'app-main';
+  document.title = APP_CONFIG.appName;
   setupSidebarToggle();
+  document.getElementById('btn-logout')?.addEventListener('click', async () => {
+    await auth.signOut();
+    showToast({ type: 'success', message: 'Sesión cerrada.' });
+  });
 }
 
 function buildStoreChrome() {
@@ -79,8 +100,11 @@ function buildStoreChrome() {
     <div class="store-shell">
       <header class="store-header">
         <a class="store-brand" href="${withBase(ROUTES.STORE_HOME)}" data-link aria-label="Ir al inicio de la tienda">
-          <img src="assets/icons/logo-sidebar.png" alt="" class="store-brand__logo" width="36" height="36" />
-          ${APP_CONFIG.appName}
+          <img src="assets/icons/logo-sidebar.png" alt="" class="store-brand__logo" width="44" height="44" />
+          <span>
+            <span class="store-brand__name">${APP_CONFIG.storeName}</span>
+            <span class="store-brand__tagline">${APP_CONFIG.storeTagline}</span>
+          </span>
         </a>
         <nav class="store-nav" aria-label="Navegación de la tienda">
           ${STORE_NAV_ITEMS.map((item) => `
@@ -92,14 +116,28 @@ function buildStoreChrome() {
       </header>
       <div id="main-content-slot"></div>
       <footer class="store-footer">
-        <p>${APP_CONFIG.appName} — pedidos sujetos a disponibilidad y confirmación.</p>
+        <p>${APP_CONFIG.storeName} — pedidos sujetos a disponibilidad y confirmación.</p>
         <a href="${withBase(ROUTES.DASHBOARD)}" data-link class="store-admin-link">Panel de administración</a>
       </footer>
     </div>
   `;
   slotMainContent(document.querySelector('.store-shell'));
   mainContentEl.className = 'app-main';
+  document.title = APP_CONFIG.storeName;
   updateCartBadge();
+}
+
+function buildLoginChrome() {
+  document.body.innerHTML = `
+    <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
+    <div class="login-shell">
+      <div id="main-content-slot"></div>
+    </div>
+  `;
+  slotMainContent(document.querySelector('.login-shell'));
+  mainContentEl.className = 'login-main';
+  document.title = APP_CONFIG.appName;
+  renderLogin(mainContentEl);
 }
 
 function updateCartBadge() {
@@ -127,13 +165,15 @@ function highlightActiveNav(pathname) {
 }
 
 /**
- * Se ejecuta en cada cambio de ruta (lo emite el Router). Si la nueva ruta
- * cae en una zona distinta a la actual (tienda ↔ admin), reconstruye el
- * chrome antes de que el módulo renderice — así, para cuando `view.render()`
- * corre, `mainContentEl` ya está reubicado en la posición correcta del DOM.
+ * Se ejecuta en cada cambio de ruta PERMITIDO (el guard de auth ya lo dejó
+ * pasar — ver setGuard más abajo). Si la zona resuelta cambió, reconstruye
+ * el chrome antes de que el módulo renderice — así, para cuando
+ * `view.render()` corre, `mainContentEl` ya está reubicado en el lugar
+ * correcto del DOM.
  */
 function onRouteChanged(pathname) {
-  const zone = zoneOf(pathname);
+  const zone = resolveZone(pathname);
+  if (zone === 'login') return; // el guard (onBlocked, ver setGuard) ya se encarga de esto
   if (zone !== currentZone) {
     currentZone = zone;
     if (zone === 'admin') buildAdminChrome(); else buildStoreChrome();
@@ -174,7 +214,7 @@ function onSidebarKeydown(e) {
     return;
   }
   if (e.key !== 'Tab' || !sidebar) return;
-  const focusable = Array.from(sidebar.querySelectorAll('a[href]')).filter((el) => el.offsetParent !== null);
+  const focusable = Array.from(sidebar.querySelectorAll('a[href], button')).filter((el) => el.offsetParent !== null);
   if (focusable.length === 0) return;
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
@@ -211,11 +251,23 @@ function setupSidebarToggle() {
   });
 }
 
+/** Corre las migraciones de datos UNA sola vez, y solo cuando hay sesión
+ *  iniciada — con la base en Supabase, un visitante de la tienda sin sesión
+ *  no tiene permiso para tocar app_meta (ver franthina_schema.sql), así que
+ *  correr esto sin sesión tiraría un error de permisos sin sentido para un
+ *  cliente que solo está mirando el catálogo. */
+async function ensureMigrations() {
+  if (migrationsRan) return;
+  migrationsRan = true;
+  await runMigrations();
+}
+
 async function init() {
   await store.hydrateA11yPrefs();
+  await store.hydrateBusinessSettings();
 
-  // mainContentEl se crea UNA sola vez acá; buildAdminChrome/buildStoreChrome
-  // solo lo reubican (nunca lo recrean) cada vez que cambia la zona.
+  // mainContentEl se crea UNA sola vez acá; build*Chrome() solo lo reubica
+  // (nunca lo recrea) cada vez que cambia la zona.
   mainContentEl = document.createElement('main');
   mainContentEl.id = 'main-content';
   mainContentEl.tabIndex = -1;
@@ -225,8 +277,11 @@ async function init() {
   eventBus.on(EVENTS.A11Y_PREFS_CHANGED, applyA11yPrefs);
   eventBus.on(EVENTS.CART_CHANGED, updateCartBadge);
 
-  // Las migraciones corren antes que cualquier módulo toque datos.
-  await runMigrations();
+  // Se espera a conocer el estado real de la sesión ANTES de armar el Router:
+  // así su guard (sincrónico, ver core/router.js) es correcto desde la
+  // primerísima resolución de ruta, sin una ventana donde no se sabe todavía.
+  const initialSession = await auth.ready();
+  if (initialSession) await ensureMigrations();
 
   const router = new Router(mainContentEl);
 
@@ -251,13 +306,35 @@ async function init() {
     .register(ROUTES.SETTINGS, () => import('./modules/settings/index.js'))
     .registerNotFound(() => import('./modules/not-found/index.js'));
 
+  // Bloquea cualquier ruta de /admin sin sesión: en vez de dejar que el
+  // Router cargue el módulo protegido (que ya arrancaría a pedir datos),
+  // muestra el login y no carga nada más.
+  router.setGuard({
+    test: (pathname) => zoneOf(pathname) !== 'admin' || Boolean(auth.getCachedSession()),
+    onBlocked: () => {
+      currentZone = 'login';
+      buildLoginChrome();
+    },
+  });
+
   eventBus.on(EVENTS.ROUTE_CHANGED, onRouteChanged);
 
-  // Construye el chrome inicial ANTES de router.start(), para que el primer
-  // render tenga dónde ubicarse (onRouteChanged también lo haría, pero recién
-  // después de que la primera navegación resuelva la ruta).
-  currentZone = zoneOf(stripBase(window.location.pathname || '/') || '/');
-  if (currentZone === 'admin') buildAdminChrome(); else buildStoreChrome();
+  // Vuelve a resolver la ruta actual cada vez que cambia si HAY o no sesión
+  // (nunca en cada evento de auth sin más: Supabase renueva el token de
+  // sesión sola cada tanto, y eso dispara el mismo evento — reaccionar a
+  // eso también volvería a renderizar la pantalla entera de la nada,
+  // pudiendo cortar a alguien a mitad de un formulario). Un login exitoso
+  // hace que la ruta de /admin que se había pedido (y bloqueado) ahora sí
+  // cargue; un logout hace que la próxima acción vuelva a mostrar el login
+  // en vez de dejar contenido protegido a la vista.
+  let wasAuthenticated = Boolean(initialSession);
+  auth.onChange(async (session) => {
+    const isAuthenticated = Boolean(session);
+    if (isAuthenticated === wasAuthenticated) return;
+    wasAuthenticated = isAuthenticated;
+    if (isAuthenticated) await ensureMigrations();
+    router.start();
+  });
 
   interceptInternalLinks(router);
   router.start();
