@@ -37,6 +37,13 @@ después se programa.
   la v0.24 del roadmap original (ver más abajo). Esto reemplazó al plan
   original de "v0.19 — Simulador de costos y precios" (ver más abajo), que
   se corrió a una versión futura por decisión de producto.
+- ✅ **v0.22 — WhatsApp** (`core/whatsapp.js`, links `wa.me` — sin API ni
+  backend, cada envío lo confirma una persona a mano desde WhatsApp): al
+  confirmar una compra, la tienda le ofrece al cliente un botón para
+  mandarle el resumen del pedido al negocio; desde `/admin/pedidos`, cada
+  fila tiene un botón para escribirle al cliente con el resumen y estado de
+  su pedido. El número de WhatsApp del negocio se configura una vez en
+  Configuración (`core/state.js`, `business.whatsappNumber`).
 
 ## El núcleo comercial completo ya está cubierto
 
