@@ -133,11 +133,13 @@ function setupCartBehavior(modalEl, ingredients) {
   updateLiveTotal(modalEl);
 }
 
+/** Autocompleta el costo unitario con el último costo cargado del ingrediente.
+ *  Siempre pisa el valor anterior — ver el mismo fix en sale.controller.js. */
 function autofillCost(selectEl) {
   const row = selectEl.closest('[data-item-row]');
   const costInput = row.querySelector('[data-field="unitCost"]');
   const suggestedCost = selectEl.selectedOptions[0]?.dataset.cost;
-  if (suggestedCost && !costInput.value) costInput.value = suggestedCost;
+  if (suggestedCost) costInput.value = suggestedCost;
 }
 
 function updateLiveTotal(modalEl) {
