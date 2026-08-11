@@ -11,6 +11,7 @@ import { confirmAction } from '../../components/confirm.js';
 import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError } from '../../core/errors.js';
+import { logAction } from '../../core/auditLog.js';
 import { recipeService } from '../recipes/recipe.service.js';
 import { debounce, normalizeForSearch } from '../../core/utils.js';
 
@@ -142,6 +143,7 @@ function bindRowActions(container, displayedItems, allItems) {
       if (!confirmed) return;
       try {
         await ingredientService.remove(item.id);
+        logAction({ action: 'Eliminó', entity: 'ingrediente', entityId: item.id, details: item.name });
         showToast({ type: 'success', message: `"${item.name}" fue eliminado.` });
         render(null, container);
       } catch (err) {
