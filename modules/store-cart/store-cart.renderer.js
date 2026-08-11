@@ -72,16 +72,14 @@ export function renderCartPage(container, { lines }) {
         <input class="input" id="co-name" name="name" required maxlength="200" />
         <div class="field__error" data-error-for="name" hidden></div>
       </div>
-      <div class="row gap-3">
-        <div class="field" style="flex:1;">
-          <label class="field__label" for="co-phone">Teléfono</label>
-          <input class="input" type="tel" id="co-phone" name="phone" placeholder="11-5555-5555" />
-          <div class="field__error" data-error-for="phone" hidden></div>
-        </div>
-        <div class="field" style="flex:1;">
-          <label class="field__label" for="co-email">Email</label>
-          <input class="input" type="email" id="co-email" name="email" />
-        </div>
+      <div class="field">
+        <label class="field__label" for="co-phone">Teléfono</label>
+        <input class="input" type="tel" id="co-phone" name="phone" placeholder="11-5555-5555" />
+        <div class="field__error" data-error-for="phone" hidden></div>
+      </div>
+      <div class="field">
+        <label class="field__label" for="co-email">Email</label>
+        <input class="input" type="email" id="co-email" name="email" />
       </div>
       <div class="field__hint" style="margin-top:calc(var(--space-2) * -1); margin-bottom: var(--space-4);">Dejanos al menos un teléfono o un email para poder confirmarte el pedido.</div>
       <div class="field">
