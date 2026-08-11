@@ -161,13 +161,16 @@ function setupCartBehavior(modalEl, products) {
   updateLiveTotals(modalEl);
 }
 
-/** Autocompleta el precio unitario con el precio de venta del producto elegido. */
+/** Autocompleta el precio unitario con el precio de venta del producto elegido.
+ *  Siempre pisa el valor anterior: si no lo hiciera, cambiar de producto después
+ *  de haber elegido uno primero dejaría el precio del producto viejo pegado
+ *  al nuevo, mostrando un total incorrecto sin que se note por qué. */
 function autofillPrice(selectEl) {
   const row = selectEl.closest('[data-item-row]');
   const priceInput = row.querySelector('[data-field="unitPrice"]');
   const selectedOption = selectEl.selectedOptions[0];
   const suggestedPrice = selectedOption?.dataset.price;
-  if (suggestedPrice && !priceInput.value) {
+  if (suggestedPrice) {
     priceInput.value = suggestedPrice;
   }
   updateRowSubtotal(row);
