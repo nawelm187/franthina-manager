@@ -12,6 +12,7 @@ import { confirmAction } from '../../components/confirm.js';
 import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError, InsufficientStockError } from '../../core/errors.js';
+import { logAction } from '../../core/auditLog.js';
 import { formatCurrency, focusNewRow, debounce, normalizeForSearch } from '../../core/utils.js';
 
 let sortState = { key: 'deliveryDate', direction: 'asc' };
@@ -80,6 +81,7 @@ function bindEvents(container, orders, products, customers, allOrders, customers
       if (!confirmed) return;
       try {
         await orderService.cancel(btn.dataset.id);
+        logAction({ action: 'Canceló', entity: 'pedido', entityId: btn.dataset.id });
         showToast({ type: 'success', message: 'Pedido cancelado.' });
         render(null, container);
       } catch (err) {
