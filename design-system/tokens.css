@@ -161,6 +161,17 @@ html.a11y-reduce-motion * {
   scroll-behavior: auto !important;
 }
 
+/* Además del interruptor manual de arriba, respeta la preferencia del
+   sistema operativo aunque la persona nunca haya entrado a Configuración. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ============ TEMA OSCURO ============ */
 html.theme-dark {
   --surface-base: #2B0F1C;
