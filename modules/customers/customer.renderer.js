@@ -57,17 +57,15 @@ export function customerFormHtml(customer) {
         <input class="input" id="c-name" name="name" value="${escapeHtml(customer.name)}" required maxlength="200" />
         <div class="field__error" data-error-for="name" hidden></div>
       </div>
-      <div class="row gap-3">
-        <div class="field" style="flex:1;">
-          <label class="field__label" for="c-phone">Teléfono</label>
-          <input class="input" type="tel" id="c-phone" name="phone" value="${escapeHtml(customer.phone)}" />
-          <div class="field__error" data-error-for="phone" hidden></div>
-        </div>
-        <div class="field" style="flex:1;">
-          <label class="field__label" for="c-email">Email</label>
-          <input class="input" type="email" id="c-email" name="email" value="${escapeHtml(customer.email)}" />
-          <div class="field__error" data-error-for="email" hidden></div>
-        </div>
+      <div class="field">
+        <label class="field__label" for="c-phone">Teléfono</label>
+        <input class="input" type="tel" id="c-phone" name="phone" value="${escapeHtml(customer.phone)}" />
+        <div class="field__error" data-error-for="phone" hidden></div>
+      </div>
+      <div class="field">
+        <label class="field__label" for="c-email">Email</label>
+        <input class="input" type="email" id="c-email" name="email" value="${escapeHtml(customer.email)}" />
+        <div class="field__error" data-error-for="email" hidden></div>
       </div>
       <div class="field">
         <label class="field__label" for="c-address">Dirección</label>
