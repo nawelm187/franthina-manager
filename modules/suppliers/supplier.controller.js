@@ -11,6 +11,7 @@ import { confirmAction } from '../../components/confirm.js';
 import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError } from '../../core/errors.js';
+import { logAction } from '../../core/auditLog.js';
 import { debounce, normalizeForSearch } from '../../core/utils.js';
 
 let sortState = { key: null, direction: 'asc' };
@@ -95,6 +96,7 @@ function bindRowActions(container, suppliers, allSuppliers) {
       if (!confirmed) return;
       try {
         await supplierService.remove(supplier.id);
+        logAction({ action: 'Eliminó', entity: 'proveedor', entityId: supplier.id, details: supplier.name });
         showToast({ type: 'success', message: `"${supplier.name}" fue eliminado.` });
         render(null, container);
       } catch (err) {
