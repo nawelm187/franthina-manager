@@ -30,4 +30,5 @@ export const COLLECTIONS = Object.freeze({
 export const META_KEYS = Object.freeze({
   A11Y_PREFS: 'a11yPrefs',
   SCHEMA_VERSION: 'schemaVersion',
+  BUSINESS_SETTINGS: 'businessSettings',
 });
