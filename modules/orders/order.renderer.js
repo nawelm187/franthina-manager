@@ -6,6 +6,8 @@
 import { renderDataTable } from '../../components/dataTable.js';
 import { formatCurrency, formatDate, escapeHtml } from '../../core/utils.js';
 import { ORDER_STATUS, ORDER_STATUS_LABELS, calculateOrderTotal, calculateOrderBalance } from './order.model.js';
+import { buildWhatsAppLink } from '../../core/whatsapp.js';
+import { APP_CONFIG } from '../../core/config.js';
 
 const STATUS_BADGE_VARIANT = {
   [ORDER_STATUS.PENDING]: 'warning',
@@ -13,7 +15,24 @@ const STATUS_BADGE_VARIANT = {
   [ORDER_STATUS.CANCELLED]: 'danger',
 };
 
-export function renderOrdersPage(container, { orders, customersById, sortState }) {
+/** Arma el texto del mensaje de WhatsApp con el resumen del pedido — el
+ *  negocio lo manda al cliente con un toque desde la tabla de Pedidos. */
+function buildOrderStatusMessage(order, customer, productsById) {
+  const itemLines = order.items
+    .map((it) => `${it.quantity}x ${productsById.get(it.productId)?.name ?? 'Producto eliminado'}`)
+    .join('\n');
+  return [
+    `¡Hola ${customer.name}! Te escribimos por tu pedido en ${APP_CONFIG.appName}:`,
+    '',
+    itemLines,
+    '',
+    `Total: ${formatCurrency(calculateOrderTotal(order))}`,
+    `Entrega: ${formatDate(order.deliveryDate)}`,
+    `Estado: ${ORDER_STATUS_LABELS[order.status]}`,
+  ].join('\n');
+}
+
+export function renderOrdersPage(container, { orders, customersById, productsById, sortState }) {
   container.innerHTML = `
     <header class="row" style="justify-content:space-between; margin-bottom: var(--space-5); flex-wrap:wrap; gap: var(--space-3);">
       <div>
@@ -43,13 +62,21 @@ export function renderOrdersPage(container, { orders, customersById, sortState }
         ],
         rows: orders,
         emptyMessage: 'Todavía no cargaste ningún pedido.',
-        rowActionsHtml: (row) => row.status === ORDER_STATUS.PENDING
-          ? `
-            <div class="row gap-2">
-              <button class="btn btn--secondary" data-action="deliver" data-id="${row.id}">✓ Entregar</button>
-              <button class="btn btn--ghost btn--icon-only" data-action="cancel" data-id="${row.id}" aria-label="Cancelar">✕</button>
-            </div>`
-          : '<span class="field__hint">Sin acciones disponibles</span>',
+        rowActionsHtml: (row) => {
+          const customer = customersById.get(row.customerId);
+          const whatsappLink = customer?.phone
+            ? buildWhatsAppLink(customer.phone, buildOrderStatusMessage(row, customer, productsById))
+            : null;
+          const whatsappBtn = whatsappLink
+            ? `<a class="btn btn--ghost btn--icon-only" href="${whatsappLink}" target="_blank" rel="noopener" aria-label="Enviar WhatsApp a ${escapeHtml(customer.name)}">💬</a>`
+            : '';
+          const statusActions = row.status === ORDER_STATUS.PENDING
+            ? `<button class="btn btn--secondary" data-action="deliver" data-id="${row.id}">✓ Entregar</button>
+               <button class="btn btn--ghost btn--icon-only" data-action="cancel" data-id="${row.id}" aria-label="Cancelar">✕</button>`
+            : '';
+          if (!whatsappBtn && !statusActions) return '<span class="field__hint">Sin acciones disponibles</span>';
+          return `<div class="row gap-2">${whatsappBtn}${statusActions}</div>`;
+        },
       })}
     </div>
   `;
@@ -62,7 +89,10 @@ export function orderFormHtml(order, products, customers) {
   return `
     <form id="order-form" novalidate>
       <div class="field">
-        <label class="field__label" for="o-customer">Cliente <span class="required">*</span></label>
+        <div class="row" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap: var(--space-2);">
+          <label class="field__label" for="o-customer" style="margin-bottom:0;">Cliente <span class="required">*</span></label>
+          <button type="button" class="btn btn--ghost" id="btn-quick-customer">➕ Nuevo cliente</button>
+        </div>
         <select class="select" id="o-customer" name="customerId">
           <option value="">Seleccioná un cliente…</option>
           ${customerOptions}

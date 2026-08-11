@@ -38,8 +38,9 @@ export async function render(_params, container) {
 
 function paint(container, displayedOrders, products, customers, allOrders) {
   const customersById = new Map(customers.map((c) => [c.id, c]));
+  const productsById = new Map(products.map((p) => [p.id, p]));
   const sorted = sortState.key ? sortRows(displayedOrders, sortState.key, sortState.direction) : displayedOrders;
-  renderOrdersPage(container, { orders: sorted, customersById, sortState });
+  renderOrdersPage(container, { orders: sorted, customersById, productsById, sortState });
   bindEvents(container, displayedOrders, products, customers, allOrders, customersById);
   bindTableSorting(container, {
     currentSort: sortState,
@@ -116,17 +117,16 @@ function openOrderForm(container, products, customers) {
     showToast({ type: 'warning', message: 'Cargá al menos un producto antes de crear un pedido.' });
     return;
   }
-  if (!customers.length) {
-    showToast({ type: 'warning', message: 'Cargá al menos un cliente antes de crear un pedido.' });
-    return;
-  }
 
   const data = createEmptyOrder();
 
   openModal({
     title: 'Nuevo pedido',
     contentHtml: orderFormHtml(data, products, customers),
-    onMount: (modalEl) => setupCartBehavior(modalEl, products),
+    onMount: (modalEl) => {
+      setupCartBehavior(modalEl, products);
+      setupQuickAddCustomer(modalEl, customers);
+    },
     footerButtons: [
       { label: 'Cancelar', variant: 'secondary', onClick: (closeFn) => closeFn() },
       {
@@ -146,6 +146,76 @@ function openOrderForm(container, products, customers) {
         },
       },
     ],
+  });
+}
+
+/**
+ * Alta rápida de cliente sin salir del formulario de pedido: en Pedidos el
+ * cliente es obligatorio (a diferencia de Ventas), así que si todavía no
+ * está cargado, antes había que cancelar, ir a Clientes, crearlo, y volver
+ * a abrir el pedido desde cero. Acá se crea con lo mínimo (nombre +
+ * teléfono) y queda seleccionado al toque, sin perder lo ya cargado en el
+ * pedido (productos, fecha, etc.).
+ */
+function setupQuickAddCustomer(modalEl, customers) {
+  modalEl.querySelector('#btn-quick-customer')?.addEventListener('click', () => {
+    openModal({
+      title: 'Nuevo cliente',
+      contentHtml: `
+        <form id="quick-customer-form" novalidate>
+          <div class="field">
+            <label class="field__label" for="qc-name">Nombre <span class="required">*</span></label>
+            <input class="input" id="qc-name" name="name" />
+            <div class="field__error" data-error-for="name" hidden></div>
+          </div>
+          <div class="field">
+            <label class="field__label" for="qc-phone">Teléfono</label>
+            <input class="input" type="tel" id="qc-phone" name="phone" placeholder="11-5555-5555" />
+            <div class="field__error" data-error-for="phone" hidden></div>
+          </div>
+          <p class="field__hint">Podés completar el resto de los datos después, desde Clientes.</p>
+        </form>
+      `,
+      onMount: (quickModalEl) => quickModalEl.querySelector('#qc-name')?.focus(),
+      footerButtons: [
+        { label: 'Cancelar', variant: 'secondary', onClick: (closeInner) => closeInner() },
+        {
+          label: 'Crear cliente',
+          variant: 'primary',
+          onClick: async (closeInner) => {
+            const form = document.getElementById('quick-customer-form');
+            const formData = new FormData(form);
+            const payload = {
+              name: formData.get('name')?.toString().trim() ?? '',
+              phone: formData.get('phone')?.toString().trim() ?? '',
+              email: '', address: '', birthday: '', notes: '',
+            };
+            try {
+              const created = await customerService.create(payload);
+              customers.push(created);
+              const select = modalEl.querySelector('#o-customer');
+              const option = document.createElement('option');
+              option.value = created.id;
+              option.textContent = created.name;
+              option.selected = true;
+              select.appendChild(option);
+              showToast({ type: 'success', message: `"${created.name}" fue creado y seleccionado.` });
+              closeInner();
+            } catch (err) {
+              if (err instanceof ValidationError) {
+                Object.entries(err.fieldErrors).forEach(([field, message]) => {
+                  const el = form.querySelector(`[data-error-for="${field}"]`);
+                  if (el) { el.hidden = false; el.textContent = `⚠ ${message}`; }
+                });
+              } else {
+                handleError(err, 'orders:quick-add-customer');
+                closeInner();
+              }
+            }
+          },
+        },
+      ],
+    });
   });
 }
 
@@ -182,11 +252,13 @@ function setupCartBehavior(modalEl, products) {
   updateLiveTotals(modalEl);
 }
 
+/** Autocompleta el precio unitario con el precio de venta del producto elegido.
+ *  Siempre pisa el valor anterior — ver el mismo fix en sale.controller.js. */
 function autofillPrice(selectEl) {
   const row = selectEl.closest('[data-item-row]');
   const priceInput = row.querySelector('[data-field="unitPrice"]');
   const suggestedPrice = selectEl.selectedOptions[0]?.dataset.price;
-  if (suggestedPrice && !priceInput.value) priceInput.value = suggestedPrice;
+  if (suggestedPrice) priceInput.value = suggestedPrice;
 }
 
 function updateLiveTotals(modalEl) {
