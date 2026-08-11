@@ -7,8 +7,10 @@ import { reportService } from './report.service.js';
 import {
   renderReportsShell, renderSalesReport, renderProductionReport,
   renderInventoryReport, renderCashboxReport, renderPurchasesReport, renderIntegrityReport,
+  renderAuditReport,
 } from './report.renderer.js';
 import { supplierService } from '../suppliers/supplier.service.js';
+import { listRecentLogs } from '../../core/auditLog.js';
 import { downloadCsv } from '../../core/csv.js';
 import { handleError } from '../../core/errors.js';
 import { showToast } from '../../components/toast.js';
@@ -26,8 +28,8 @@ export async function render(_params, container) {
 }
 
 function toggleRangePicker(container) {
-  // La pestaña de Integridad revisa todos los registros, no un rango de fechas.
-  const isIntegrity = currentTab === 'integrity';
+  // Las pestañas de Integridad y Auditoría no filtran por rango de fechas.
+  const isIntegrity = currentTab === 'integrity' || currentTab === 'audit';
   ['#rp-from', '#rp-to', '#btn-apply-range'].forEach((sel) => {
     const el = container.querySelector(sel);
     if (el) el.disabled = isIntegrity;
@@ -82,6 +84,9 @@ async function renderActiveTab(container) {
     } else if (currentTab === 'integrity') {
       const result = await reportService.checkIntegrity();
       renderIntegrityReport(content, result);
+    } else if (currentTab === 'audit') {
+      const logs = await listRecentLogs();
+      renderAuditReport(content, logs);
     }
   } catch (err) {
     handleError(err, `reports:${currentTab}`);
@@ -95,7 +100,7 @@ async function exportCurrentTab() {
       showToast({ type: 'warning', message: 'No hay datos para exportar.' });
       return;
     }
-    const suffix = currentTab === 'integrity' ? new Date().toISOString().slice(0, 10) : `${currentRange.from}_${currentRange.to}`;
+    const suffix = (currentTab === 'integrity' || currentTab === 'audit') ? new Date().toISOString().slice(0, 10) : `${currentRange.from}_${currentRange.to}`;
     downloadCsv(`franthina-reporte-${currentTab}-${suffix}`, table);
   } catch (err) {
     handleError(err, `reports:export:${currentTab}`);
@@ -136,6 +141,13 @@ async function buildCsvTableForCurrentTab() {
     return {
       headers: ['Severidad', 'Área', 'Mensaje'],
       rows: result.issues.map((i) => [i.severity, i.area, i.message]),
+    };
+  }
+  if (currentTab === 'audit') {
+    const logs = await listRecentLogs();
+    return {
+      headers: ['Fecha', 'Usuario', 'Acción', 'Sobre', 'Detalle'],
+      rows: logs.map((l) => [formatDate(l.createdAt), l.userEmail ?? '', l.action, l.entity, l.details ?? '']),
     };
   }
   // purchases

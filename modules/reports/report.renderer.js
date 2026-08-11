@@ -15,6 +15,7 @@ export const REPORT_TABS = [
   { key: 'cashbox', label: 'Caja' },
   { key: 'purchases', label: 'Compras' },
   { key: 'integrity', label: '🩺 Integridad' },
+  { key: 'audit', label: '📋 Auditoría' },
 ];
 
 export function renderReportsShell(container, { range, activeTab }) {
@@ -205,4 +206,25 @@ function statCard(label, value) {
       <p style="margin:0; font-size: var(--fs-sm);">${escapeHtml(label)}</p>
       <p style="margin:0; font-family: var(--font-display); font-size: var(--fs-xl); font-weight:700;">${value}</p>
     </div>`;
+}
+
+/** Últimas acciones registradas (ver core/auditLog.js): quién hizo qué y cuándo. */
+export function renderAuditReport(container, logs) {
+  container.innerHTML = `
+    <p class="field__hint" style="margin-bottom: var(--space-4);">
+      Últimas ${logs.length} acciones registradas (eliminaciones, cambios de precio,
+      cancelaciones). Esta pestaña no usa el filtro de fechas de arriba.
+    </p>
+    ${renderDataTable({
+      columns: [
+        { key: 'createdAt', label: 'Fecha', render: (r) => new Date(r.createdAt).toLocaleString('es-AR') },
+        { key: 'userEmail', label: 'Usuario', render: (r) => escapeHtml(r.userEmail ?? '—') },
+        { key: 'action', label: 'Acción', render: (r) => escapeHtml(r.action) },
+        { key: 'entity', label: 'Sobre', render: (r) => escapeHtml(r.entity) },
+        { key: 'details', label: 'Detalle', render: (r) => escapeHtml(r.details || '—') },
+      ],
+      rows: logs,
+      emptyMessage: 'Todavía no hay ninguna acción registrada.',
+    })}
+  `;
 }
