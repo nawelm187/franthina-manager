@@ -23,6 +23,7 @@ export class Router {
     /** @type {RouteDefinition[]} */
     this.routes = [];
     this.notFoundLoader = null;
+    this.guard = null;
 
     window.addEventListener('popstate', () => this.#resolve());
   }
@@ -35,6 +36,20 @@ export class Router {
 
   registerNotFound(loader) {
     this.notFoundLoader = loader;
+    return this;
+  }
+
+  /**
+   * Protección de acceso opcional, evaluada ANTES de cargar y renderizar
+   * cualquier ruta — evita que una pantalla protegida llegue a pedir datos,
+   * aunque sea por un instante, mientras se decide si hay que bloquearla.
+   * `test` debe ser SINCRÓNICO (por eso core/auth.js mantiene una copia en
+   * memoria de la sesión): si fuera async, el bloqueo llegaría tarde,
+   * después de que la carga de la ruta ya arrancó.
+   * @param {{ test: (pathname: string) => boolean, onBlocked: (pathname: string) => void }} guard
+   */
+  setGuard(guard) {
+    this.guard = guard;
     return this;
   }
 
@@ -79,6 +94,11 @@ export class Router {
 
     store.setState({ currentRoute: pathname });
     eventBus.emit(EVENTS.ROUTE_CHANGED, pathname);
+
+    if (this.guard && !this.guard.test(pathname)) {
+      this.guard.onBlocked(pathname);
+      return;
+    }
 
     try {
       if (!matched) {

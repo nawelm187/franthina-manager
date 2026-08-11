@@ -91,3 +91,14 @@ export function normalizeForSearch(text) {
 export function emptyStateMessage(term, baseMessage) {
   return term ? `No encontramos resultados para "${term}".` : baseMessage;
 }
+
+/**
+ * Corrige automáticamente el link "Compartir" de Google Drive (que apunta a
+ * una página de vista previa, no a la imagen en sí) al formato que sí sirve
+ * como <img src>. Cualquier otro link se deja tal cual.
+ */
+export function normalizeImageUrl(url) {
+  const driveMatch = String(url ?? '').match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (driveMatch) return `https://drive.google.com/uc?export=view&id=${driveMatch[1]}`;
+  return url;
+}

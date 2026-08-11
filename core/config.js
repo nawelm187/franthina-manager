@@ -6,11 +6,28 @@
 
 export const APP_CONFIG = Object.freeze({
   appName: 'Franthina Manager',
-  version: '0.19.0',
-  storageAdapter: 'localStorage', // 'localStorage' | 'indexedDB' | futuros: 'supabase' | 'rest'
+  // Nombre y bajada que ve el cliente en la tienda pública — separados de
+  // "appName" (que es el nombre de la herramienta interna, no de la marca).
+  storeName: 'Franthina Repostería',
+  storeTagline: 'Repostería artesanal, hecha a pedido',
+  version: '0.25.0',
+  storageAdapter: 'supabase', // 'localStorage' | 'supabase'
   storagePrefix: 'franthina:',
   defaultCurrency: 'ARS',
   defaultLocale: 'es-AR',
+});
+
+/**
+ * Credenciales del proyecto de Supabase. La "publishableKey" está pensada
+ * para ir en código que corre en el navegador — no es secreta, y por eso es
+ * segura de tener acá; la protección real de los datos la hacen las
+ * políticas de seguridad (RLS) configuradas en la base, no esta clave.
+ * Nunca poner acá la "service_role key" — esa sí es secreta y nunca debe
+ * viajar al navegador del cliente.
+ */
+export const SUPABASE_CONFIG = Object.freeze({
+  url: 'https://ppsnncwbfrrqbjprrsyx.supabase.co',
+  publishableKey: 'sb_publishable_FRAypbImChUVWriGurVljA_wMYOUgtI',
 });
 
 export const ROUTES = Object.freeze({

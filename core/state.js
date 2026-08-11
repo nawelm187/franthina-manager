@@ -24,8 +24,12 @@ const DEFAULT_A11Y = {
   theme: 'light',       // 'light' | 'dark'
 };
 
+const DEFAULT_BUSINESS_SETTINGS = {
+  whatsappNumber: '', // número del negocio para "Enviar pedido por WhatsApp" (solo dígitos, con código de país)
+};
+
 class Store {
-  #state = { currentRoute: '/', a11y: { ...DEFAULT_A11Y } };
+  #state = { currentRoute: '/', a11y: { ...DEFAULT_A11Y }, business: { ...DEFAULT_BUSINESS_SETTINGS } };
   #listeners = new Set();
 
   getState() {
@@ -60,6 +64,18 @@ class Store {
     this.setState({ a11y });
     await storage.setMeta(META_KEYS.A11Y_PREFS, a11y);
     eventBus.emit(EVENTS.A11Y_PREFS_CHANGED, a11y);
+  }
+
+  /** Se llama una única vez al arrancar la app, junto con hydrateA11yPrefs(). */
+  async hydrateBusinessSettings() {
+    const saved = await storage.getMeta(META_KEYS.BUSINESS_SETTINGS);
+    if (saved) this.setState({ business: { ...DEFAULT_BUSINESS_SETTINGS, ...saved } });
+  }
+
+  async setBusinessSetting(key, value) {
+    const business = { ...this.#state.business, [key]: value };
+    this.setState({ business });
+    await storage.setMeta(META_KEYS.BUSINESS_SETTINGS, business);
   }
 }
 
