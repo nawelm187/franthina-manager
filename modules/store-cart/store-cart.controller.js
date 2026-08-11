@@ -11,15 +11,21 @@ import { storeCart } from '../../core/storeCart.js';
 import { productService } from '../products/product.service.js';
 import { customerService } from '../customers/customer.service.js';
 import { orderService } from '../orders/order.service.js';
-import { normalizeForSearch } from '../../core/utils.js';
+import { normalizeForSearch, formatCurrency, formatDate } from '../../core/utils.js';
 import { handleError, ValidationError } from '../../core/errors.js';
+import { store } from '../../core/state.js';
+import { buildWhatsAppLink } from '../../core/whatsapp.js';
+import { APP_CONFIG } from '../../core/config.js';
+import { bindQtyStepper } from '../../components/qtyStepper.js';
 
 export async function render(_params, container) {
   container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
 
   let products = [];
   try {
-    products = await productService.list();
+    // listPublic() nunca expone costPrice ni notes — ver product.service.js.
+    // El carrito es parte de la tienda pública: nunca hay sesión de admin acá.
+    products = await productService.listPublic();
   } catch (err) {
     handleError(err, 'store-cart:list');
   }
@@ -47,6 +53,8 @@ function paint(container, products) {
 }
 
 function bindEvents(container, products) {
+  bindQtyStepper(container);
+
   container.querySelectorAll('[data-action="qty-change"]').forEach((input) => {
     input.addEventListener('change', () => {
       const qty = Math.max(0, Math.floor(Number(input.value)) || 0);
@@ -109,7 +117,8 @@ async function onSubmitCheckout(e, container, products) {
     });
 
     storeCart.clear();
-    container.innerHTML = `<h1>Carrito</h1>${renderConfirmationHtml(order)}`;
+    const whatsappLink = buildOrderWhatsAppLink({ lines, order, customerName: name });
+    container.innerHTML = `<h1>Carrito</h1>${renderConfirmationHtml({ order, whatsappLink })}`;
   } catch (err) {
     if (err instanceof ValidationError) {
       paintFieldErrors(err.fieldErrors);
@@ -121,15 +130,46 @@ async function onSubmitCheckout(e, container, products) {
   }
 }
 
-/** Busca un cliente ya cargado con el mismo teléfono o email (evita crear un
- *  registro duplicado en cada pedido del mismo comprador); si no existe, lo crea. */
-async function findOrCreateCustomer({ name, phone, email, address }) {
-  const allCustomers = await customerService.list();
-  const match = phone
-    ? allCustomers.find((c) => c.phone && normalizeForSearch(c.phone) === normalizeForSearch(phone))
-    : allCustomers.find((c) => c.email && normalizeForSearch(c.email) === normalizeForSearch(email));
+/** Arma el link de WhatsApp con el resumen del pedido, listo para que el
+ *  cliente lo mande al negocio con un toque — si no hay número configurado
+ *  en Configuración, devuelve null y el botón simplemente no se muestra. */
+function buildOrderWhatsAppLink({ lines, order, customerName }) {
+  const { whatsappNumber } = store.getState().business;
+  if (!whatsappNumber) return null;
 
-  if (match) return match;
+  const itemLines = lines.map((l) => `${l.quantity}x ${l.product.name}`).join('\n');
+  const total = lines.reduce((sum, l) => sum + l.product.sellPrice * l.quantity, 0);
+  const message = [
+    `¡Hola! Quiero confirmar mi pedido en ${APP_CONFIG.appName}:`,
+    '',
+    itemLines,
+    '',
+    `Total: ${formatCurrency(total)}`,
+    `Entrega deseada: ${formatDate(order.deliveryDate)}`,
+    `Nombre: ${customerName}`,
+    '',
+    `Pedido #${order.id.slice(0, 8)}`,
+  ].join('\n');
+
+  return buildWhatsAppLink(whatsappNumber, message);
+}
+
+/** Busca un cliente ya cargado con el mismo teléfono o email (evita crear un
+ *  registro duplicado en cada pedido del mismo comprador); si no existe, lo crea.
+ *  Un visitante de la tienda (sin sesión de administración) no tiene permiso
+ *  para LEER la lista de clientes — solo para crear uno (ver
+ *  franthina_schema.sql) — así que en ese caso directamente se crea uno
+ *  nuevo, sin poder chequear duplicados de antemano. */
+async function findOrCreateCustomer({ name, phone, email, address }) {
+  try {
+    const allCustomers = await customerService.list();
+    const match = phone
+      ? allCustomers.find((c) => c.phone && normalizeForSearch(c.phone) === normalizeForSearch(phone))
+      : allCustomers.find((c) => c.email && normalizeForSearch(c.email) === normalizeForSearch(email));
+    if (match) return match;
+  } catch {
+    // Sin permiso de lectura (visitante sin sesión) — seguir y crear uno nuevo.
+  }
   return customerService.create({ name, phone, email, address, birthday: '', notes: '' });
 }
 
