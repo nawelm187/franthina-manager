@@ -13,7 +13,7 @@ import { confirmAction } from '../../components/confirm.js';
 import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError } from '../../core/errors.js';
-import { debounce, formatCurrency, normalizeForSearch } from '../../core/utils.js';
+import { debounce, formatCurrency, normalizeForSearch, normalizeImageUrl } from '../../core/utils.js';
 
 let sortState = { key: null, direction: 'asc' };
 let searchTerm = '';
@@ -147,7 +147,10 @@ function openProductForm(container, product, recipes, allProducts) {
   openModal({
     title: isEdit ? 'Editar producto' : 'Nuevo producto',
     contentHtml: productFormHtml(data, recipes),
-    onMount: (modalEl) => setupRecipeSync(modalEl, isEdit ? product.id : null),
+    onMount: (modalEl) => {
+      setupRecipeSync(modalEl, isEdit ? product.id : null);
+      setupImagePreview(modalEl);
+    },
     footerButtons: [
       { label: 'Cancelar', variant: 'secondary', onClick: (closeFn) => closeFn() },
       {
@@ -166,7 +169,7 @@ function openProductForm(container, product, recipes, allProducts) {
             active: formData.get('active') === 'on',
             notes: formData.get('notes')?.toString() ?? '',
             description: formData.get('description')?.toString().trim() ?? '',
-            imageUrl: formData.get('imageUrl')?.toString().trim() ?? '',
+            imageUrl: normalizeImageUrl(formData.get('imageUrl')?.toString().trim() ?? ''),
           };
 
           const duplicate = findDuplicateProductName(allProducts, payload.name, isEdit ? product.id : null);
@@ -204,6 +207,43 @@ function openProductForm(container, product, recipes, allProducts) {
  * habilita/deshabilita según haya o no una receta elegida, y al presionarlo
  * llama al Service (nunca calcula el costo acá — eso es lógica de negocio).
  */
+/**
+ * Vista previa en vivo de la URL de foto: apenas se escribe/pega un link,
+ * se intenta cargar y se avisa si no es una imagen válida — así no hay que
+ * guardar el producto y después ir a la tienda para descubrir que el link
+ * no funcionaba.
+ */
+function setupImagePreview(modalEl) {
+  const input = modalEl.querySelector('#f-image');
+  const wrap = modalEl.querySelector('#image-preview-wrap');
+  const img = modalEl.querySelector('#image-preview');
+  const errorEl = modalEl.querySelector('#image-preview-error');
+  if (!input || !wrap || !img || !errorEl) return;
+
+  function update() {
+    const raw = input.value.trim();
+    if (!raw) {
+      wrap.hidden = true;
+      return;
+    }
+    wrap.hidden = false;
+    errorEl.hidden = true;
+    img.hidden = false;
+    img.src = normalizeImageUrl(raw);
+  }
+
+  img.addEventListener('error', () => {
+    if (!input.value.trim()) return;
+    img.hidden = true;
+    errorEl.hidden = false;
+  });
+  img.addEventListener('load', () => {
+    errorEl.hidden = true;
+    img.hidden = false;
+  });
+  input.addEventListener('input', update);
+}
+
 function setupRecipeSync(modalEl, existingProductId) {
   const recipeSelect = modalEl.querySelector('#f-recipe');
   const syncBtn = modalEl.querySelector('#btn-sync-recipe-cost');

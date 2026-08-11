@@ -134,7 +134,17 @@ export function productFormHtml(product, recipes) {
       <div class="field">
         <label class="field__label" for="f-image">URL de una foto (opcional)</label>
         <input class="input" type="url" id="f-image" name="imageUrl" value="${escapeHtml(product.imageUrl)}" placeholder="https://..." />
-        <div class="field__hint">Pegá el link de una imagen ya subida a algún lado (por ejemplo, una foto de Google Drive o Imgur configurada como pública).</div>
+        <div class="field__hint">
+          Pegá el link de una imagen ya subida a algún lado. Funciona con Imgur
+          o cualquier link que termine en <code>.jpg</code>/<code>.png</code>.
+          Un link de Google Drive "Compartir" normal <strong>no funciona</strong>
+          directo — necesitás el link "para ver" (click derecho en el archivo →
+          Compartir → Copiar enlace, con acceso "Cualquier usuario con el enlace").
+        </div>
+        <div id="image-preview-wrap" ${product.imageUrl ? '' : 'hidden'} style="margin-top: var(--space-3);">
+          <img id="image-preview" src="${escapeHtml(product.imageUrl)}" alt="" style="max-width: 160px; max-height: 160px; border-radius: var(--radius-md); border: var(--border-width) solid var(--surface-border); object-fit: cover; display: block;" />
+          <div id="image-preview-error" class="field__error" hidden>⚠ Esta URL no cargó una imagen válida — probá con otro link (ver la ayuda de arriba).</div>
+        </div>
       </div>
       <div class="field">
         <label class="field__label" for="f-notes">Notas internas</label>

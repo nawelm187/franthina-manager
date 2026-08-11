@@ -24,6 +24,22 @@ export const productService = {
     return products.sort((a, b) => a.name.localeCompare(b.name));
   },
 
+  /**
+   * Productos para la tienda pública, sin sesión de administración iniciada.
+   * Con el adapter de Supabase, storage.getPublicProducts() usa una función seguray
+   * de la base que solo expone nombre/foto/descripción/precio/disponibilidad
+   * (nunca costPrice ni notes) — ver CloudStorageAdapter.js. Con
+   * localStorage (sin nube todavía) no existe esa distinción real, así que
+   * simplemente devuelve los productos activos de siempre.
+   */
+  async listPublic() {
+    if (typeof storage.getPublicProducts === 'function') {
+      return storage.getPublicProducts();
+    }
+    const products = await storage.getAll(PRODUCT_COLLECTION);
+    return products.filter((p) => p.active).sort((a, b) => a.name.localeCompare(b.name));
+  },
+
   async get(id) {
     return storage.getById(PRODUCT_COLLECTION, id);
   },
