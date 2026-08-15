@@ -4,7 +4,7 @@
  */
 
 import { ValidationError } from '../../core/errors.js';
-import { isPositiveNumber, isNonNegativeNumber, isOneOf } from '../../core/validators.js';
+import { isPositiveNumber, isNonNegativeNumber, isOneOf, mustSelectMessage, notNegativeMessage, FORM_HAS_ERRORS_MESSAGE } from '../../core/validators.js';
 import { PAYMENT_METHODS, calculateSaleTotal } from './sale.model.js';
 
 export function validateSale(data) {
@@ -16,20 +16,20 @@ export function validateSale(data) {
     fieldErrors.items = 'Cada línea necesita un producto y una cantidad mayor a cero.';
   }
   if (!isOneOf(data.paymentMethod, Object.values(PAYMENT_METHODS))) {
-    fieldErrors.paymentMethod = 'Seleccioná un método de pago.';
+    fieldErrors.paymentMethod = mustSelectMessage('un método de pago');
   }
   if (!isNonNegativeNumber(data.discount)) {
-    fieldErrors.discount = 'El descuento no puede ser negativo.';
+    fieldErrors.discount = notNegativeMessage('El descuento');
   }
   if (data.amountReceived !== null && data.amountReceived !== undefined) {
     if (!isNonNegativeNumber(data.amountReceived)) {
-      fieldErrors.amountReceived = 'El monto recibido no puede ser negativo.';
+      fieldErrors.amountReceived = notNegativeMessage('El monto recibido');
     } else if (Array.isArray(data.items) && data.items.length > 0 && Number(data.amountReceived) < calculateSaleTotal(data)) {
       fieldErrors.amountReceived = 'El monto recibido es menor al total de la venta.';
     }
   }
 
   if (Object.keys(fieldErrors).length > 0) {
-    throw new ValidationError('Revisá los campos marcados en el formulario.', fieldErrors);
+    throw new ValidationError(FORM_HAS_ERRORS_MESSAGE, fieldErrors);
   }
 }

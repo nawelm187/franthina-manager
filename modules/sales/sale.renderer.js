@@ -7,6 +7,7 @@
 import { renderDataTable } from '../../components/dataTable.js';
 import { formatCurrency, formatDate, escapeHtml } from '../../core/utils.js';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHODS } from './sale.model.js';
+import { icon } from '../../core/icons.js';
 
 export function renderSalesPage(container, { sales, customersById, sortState }) {
   container.innerHTML = `
@@ -16,7 +17,7 @@ export function renderSalesPage(container, { sales, customersById, sortState }) 
         <p>Registrá ventas rápidas y llevá el control de lo vendido.</p>
       </div>
       <button class="btn btn--primary" id="btn-new-sale">
-        <span aria-hidden="true">🛒</span> Nueva venta
+        ${icon('shopping_cart')} Nueva venta
       </button>
     </header>
 
@@ -38,6 +39,7 @@ export function renderSalesPage(container, { sales, customersById, sortState }) 
         ],
         rows: sales,
         emptyMessage: 'Todavía no registraste ninguna venta.',
+        emptyAction: { id: 'btn-empty-new-sale', label: 'Nueva venta' },
       })}
     </div>
   `;
@@ -73,7 +75,7 @@ export function saleFormHtml(sale, products, customers) {
         <div id="sale-items-list" class="stack gap-2">${rows.join('')}</div>
         <div class="field__error" data-error-for="items" hidden style="margin-top: var(--space-2);"></div>
         <button type="button" class="btn btn--secondary" id="btn-add-sale-item" style="margin-top: var(--space-2);">
-          ➕ Agregar producto
+          ${icon('add')} Agregar producto
         </button>
       </fieldset>
 
@@ -120,7 +122,7 @@ function saleItemRowHtml(item, products) {
       <input class="input" type="number" min="1" step="1" data-field="quantity" value="${item.quantity || 1}" placeholder="Cant." style="flex:1;" />
       <input class="input" type="number" min="0" step="0.01" data-field="unitPrice" value="${item.unitPrice || ''}" placeholder="Precio" style="flex:1;" />
       <span class="input" data-subtotal-display style="flex:1; background: var(--surface-sunken); display:flex; align-items:center; font-weight: var(--fw-semibold);">$0</span>
-      <button type="button" class="btn btn--ghost btn--icon-only" data-remove-item aria-label="Quitar producto">🗑️</button>
+      <button type="button" class="btn btn--ghost btn--icon-only" data-remove-item aria-label="Quitar producto">${icon('delete')}</button>
     </div>`;
 }
 
