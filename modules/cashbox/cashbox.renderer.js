@@ -6,6 +6,7 @@
 import { renderDataTable } from '../../components/dataTable.js';
 import { formatCurrency, formatDate, escapeHtml } from '../../core/utils.js';
 import { MOVEMENT_TYPE_LABELS, MOVEMENT_TYPES } from './cashbox.model.js';
+import { icon } from '../../core/icons.js';
 
 const TYPE_BADGE_VARIANT = {
   [MOVEMENT_TYPES.INCOME]: 'success',
@@ -27,7 +28,7 @@ export function renderCashboxPage(container, { session, movements, expectedAmoun
 function renderNoSession() {
   return `
     <div class="card state-panel">
-      <span class="state-panel__icon" aria-hidden="true">💤</span>
+      <span class="state-panel__icon">${icon('point_of_sale')}</span>
       <h3>No hay una caja abierta</h3>
       <p>Abrí la caja para empezar a registrar ventas y movimientos del día.</p>
       <button class="btn btn--primary" id="btn-open-cashbox">Abrir caja</button>
@@ -48,9 +49,9 @@ function renderOpenSession(session, movements, expectedAmount, sortState) {
     </div>
 
     <div class="row gap-3" style="margin-bottom: var(--space-5); flex-wrap:wrap;">
-      <button class="btn btn--secondary" id="btn-add-income">➕ Registrar ingreso</button>
-      <button class="btn btn--secondary" id="btn-add-expense">➖ Registrar egreso</button>
-      <button class="btn btn--danger" id="btn-close-cashbox" style="margin-left:auto;">🔒 Cerrar caja</button>
+      <button class="btn btn--secondary" id="btn-add-income">${icon('add')} Registrar ingreso</button>
+      <button class="btn btn--secondary" id="btn-add-expense">${icon('remove')} Registrar egreso</button>
+      <button class="btn btn--danger" id="btn-close-cashbox" style="margin-left:auto;">${icon('lock')} Cerrar caja</button>
     </div>
 
     <h3>Movimientos de esta sesión</h3>
