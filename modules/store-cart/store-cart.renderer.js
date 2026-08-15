@@ -7,6 +7,7 @@
 import { escapeHtml, formatCurrency, normalizeImageUrl } from '../../core/utils.js';
 import { withBase } from '../../core/basePath.js';
 import { ROUTES } from '../../core/config.js';
+import { icon } from '../../core/icons.js';
 
 function qtyStepperHtml(inputId, name, { min = 0, value = 1, extraAttrs = '' } = {}) {
   return `
@@ -20,7 +21,7 @@ function qtyStepperHtml(inputId, name, { min = 0, value = 1, extraAttrs = '' } =
 function emptyCartHtml() {
   return `
     <div class="state-panel">
-      <span class="state-panel__icon" aria-hidden="true">🛒</span>
+      <span class="state-panel__icon">${icon('shopping_cart')}</span>
       <h2>Tu carrito está vacío</h2>
       <p>Agregá productos desde el catálogo para armar tu pedido.</p>
       <a class="btn btn--primary" href="${withBase(ROUTES.STORE_HOME)}" data-link>Ver catálogo</a>
@@ -33,7 +34,7 @@ function cartLineHtml(line) {
   return `
     <div class="cart-line">
       <div class="cart-line__media" aria-hidden="true">
-        <span>🧁</span>
+        <span>${icon('bakery_dining')}</span>
         ${line.product.imageUrl ? `<img src="${escapeHtml(normalizeImageUrl(line.product.imageUrl))}" alt="" loading="lazy" onerror="this.remove()" />` : ''}
       </div>
       <div class="cart-line__info">
@@ -42,7 +43,7 @@ function cartLineHtml(line) {
       </div>
       ${qtyStepperHtml(inputId, line.product.name, { min: 0, value: line.quantity, extraAttrs: `data-action="qty-change" data-id="${line.product.id}"` })}
       <span class="cart-line__subtotal">${formatCurrency(subtotal)}</span>
-      <button class="btn btn--ghost btn--icon-only" data-action="remove-item" data-id="${line.product.id}" aria-label="Quitar ${escapeHtml(line.product.name)} del carrito">🗑️</button>
+      <button class="btn btn--ghost btn--icon-only" data-action="remove-item" data-id="${line.product.id}" aria-label="Quitar ${escapeHtml(line.product.name)} del carrito">${icon('delete')}</button>
     </div>`;
 }
 
@@ -66,7 +67,7 @@ export function renderCartPage(container, { lines }) {
     </div>
 
     <form id="checkout-form" class="checkout-card" novalidate>
-      <h2><span aria-hidden="true">📝</span> Tus datos</h2>
+      <h2>${icon('edit_note')} Tus datos</h2>
       <div class="field">
         <label class="field__label" for="co-name">Nombre <span class="required">*</span></label>
         <input class="input" id="co-name" name="name" required maxlength="200" />
@@ -104,11 +105,11 @@ export function renderCartPage(container, { lines }) {
 export function renderConfirmationHtml({ order, whatsappLink }) {
   return `
     <div class="state-panel">
-      <span class="state-panel__icon" aria-hidden="true">🎉</span>
+      <span class="state-panel__icon">${icon('celebration')}</span>
       <h2>¡Pedido recibido!</h2>
       <p>Tu pedido <strong>#${escapeHtml(order.id.slice(0, 8))}</strong> quedó registrado. Nos vamos a contactar para confirmar los detalles.</p>
       ${whatsappLink ? `
-        <a class="btn btn--primary" href="${whatsappLink}" target="_blank" rel="noopener">💬 Enviar pedido por WhatsApp</a>
+        <a class="btn btn--primary" href="${whatsappLink}" target="_blank" rel="noopener">${icon('chat')} Enviar pedido por WhatsApp</a>
         <p class="field__hint" style="margin-top: var(--space-2);">Así nos llega al instante y podemos confirmarte más rápido.</p>
       ` : ''}
       <a class="btn btn--secondary" href="${withBase(ROUTES.STORE_HOME)}" data-link style="margin-top: var(--space-3);">Seguir viendo el catálogo</a>
