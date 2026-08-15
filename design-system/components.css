@@ -75,7 +75,7 @@
   min-width: 0;
 }
 @media (max-width: 1023px) {
-  /* Deja lugar para que el botón ☰ (fixed, arriba a la izquierda) no tape el título. */
+  /* Deja lugar para que el botón de menú (fixed, arriba a la izquierda) no tape el título. */
   .app-main { padding-top: calc(44px + var(--space-3) * 2); }
 }
 @media (max-width: 480px) {
@@ -261,8 +261,23 @@
   .table--responsive thead { display: none; }
   .table--responsive, .table--responsive tbody, .table--responsive tr, .table--responsive td { display: block; width: 100%; }
   .table--responsive tr { margin-bottom: var(--space-4); border: var(--border-width) solid var(--surface-border); border-radius: var(--radius-md); overflow: hidden; }
-  .table--responsive td { display: flex; justify-content: space-between; gap: var(--space-3); }
-  .table--responsive td::before { content: attr(data-label); font-weight: var(--fw-semibold); color: var(--text-secondary); }
+  .table--responsive td {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: var(--space-3); flex-wrap: wrap;
+  }
+  /* Si el valor (nombre largo, badge + texto, etc.) no entra al lado del
+     label en una sola línea, que baje a su propia línea en vez de
+     comprimirse hasta ser ilegible — pasa seguido con nombres de productos
+     largos en pantallas de 320-360px. */
+  .table--responsive td::before {
+    content: attr(data-label); font-weight: var(--fw-semibold); color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  .table--responsive td > * { text-align: right; min-width: 0; }
+  /* La fila de Acciones no tiene un solo "valor" sino un grupo de botones —
+     que se acomoden a la derecha en vez de forzarlos contra el label. */
+  .table--responsive td[data-label="Acciones"] { justify-content: space-between; }
+  .table--responsive td[data-label="Acciones"] > .row { justify-content: flex-end; flex: 1; }
 }
 
 /* Filas de ítem (producto/ingrediente + cantidad + precio) dentro de los
@@ -341,6 +356,13 @@
 /* ============ LOADER / SKELETON ============ */
 .skeleton { background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--surface-border) 50%, var(--surface-sunken) 75%); background-size: 200% 100%; animation: skeleton-wave 1.4s ease infinite; border-radius: var(--radius-sm); }
 @keyframes skeleton-wave { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.skeleton-table { text-align: left; }
+.skeleton-row { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--surface-border); }
+.skeleton-row .skeleton { height: 0.9rem; }
+.skeleton-row:last-child { border-bottom: none; }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
 
 /* ============ UTILIDADES DE LAYOUT ============ */
 .stack { display: flex; flex-direction: column; }
@@ -602,3 +624,59 @@
 .login-card__logo { border-radius: 50%; object-fit: cover; margin-bottom: var(--space-3); box-shadow: var(--shadow-sm); }
 .login-card h1 { font-family: var(--font-display); color: var(--color-chocolate); margin: 0 0 var(--space-2); }
 .login-card form { text-align: left; margin-top: var(--space-5); }
+
+/* ============ ICONS (v0.29.2) ============ */
+/* Google Material Symbols en vez de emojis: mismo trazo, mismo peso visual,
+   se ven igual en todos los sistemas operativos y no dependen de qué set
+   de emojis tenga instalado cada dispositivo. */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  display: inline-flex;
+  vertical-align: middle;
+  line-height: 1;
+  user-select: none;
+}
+.icon { font-size: 1.25em; }
+.icon-lg { font-size: var(--fs-2xl, 1.75rem); }
+.icon-inline { font-size: 1em; margin-right: 0.25em; vertical-align: -0.2em; }
+.btn .material-symbols-outlined { font-size: 1.15em; }
+.nav-link__icon .material-symbols-outlined, .sidebar-toggle .material-symbols-outlined { font-size: 1.3em; }
+.state-panel__icon .material-symbols-outlined { font-size: 2.5rem; }
+
+/* Spinner de carga: mismo ícono de Material Symbols, solo se le agrega
+   rotación. Se usa en botones que están procesando algo (ver modal.js). */
+@keyframes icon-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.icon-spin { animation: icon-spin 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .icon-spin { animation-duration: 2.4s; }
+}
+
+/* ============ AUDITORÍA — feed de tarjetas (v0.29.7) ============ */
+/* Reemplaza la tabla genérica Fecha|Usuario|Acción|Entidad|Detalle por un
+   feed de tarjetas — igual de escaneable en desktop, y mucho más legible
+   en celular que una tabla de 5 columnas apretadas. */
+.audit-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.audit-card {
+  display: flex; gap: var(--space-3); align-items: flex-start;
+  background: var(--surface-raised); border: var(--border-width) solid var(--surface-border);
+  border-left: 4px solid var(--surface-border);
+  border-radius: var(--radius-md); padding: var(--space-4);
+}
+.audit-card--danger  { border-left-color: var(--color-danger); }
+.audit-card--warning { border-left-color: var(--color-warning); }
+.audit-card__icon { flex-shrink: 0; margin-top: 0.1em; color: var(--text-secondary); }
+.audit-card--danger .audit-card__icon  { color: var(--color-danger); }
+.audit-card--warning .audit-card__icon { color: var(--color-warning); }
+.audit-card__body { min-width: 0; flex: 1; }
+.audit-card__title { margin: 0; font-weight: var(--fw-semibold); }
+.audit-card__entity { font-weight: var(--fw-regular); color: var(--text-secondary); }
+.audit-card__meta { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--text-secondary); }
+.audit-card__details {
+  margin: var(--space-2) 0 0; font-size: var(--fs-sm); word-break: break-word;
+}
+/* Cuando el detalle es un cambio de valor ("$5.000 → $9.500"), destacarlo —
+   es lo primero que alguien revisando el historial quiere ver. */
+.audit-card__details--change {
+  display: inline-block; background: var(--surface-sunken); border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3); font-family: var(--font-mono, monospace); font-weight: var(--fw-semibold);
+}
