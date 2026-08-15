@@ -5,6 +5,8 @@
 
 import { renderDataTable } from '../../components/dataTable.js';
 import { escapeHtml, emptyStateMessage } from '../../core/utils.js';
+import { icon } from '../../core/icons.js';
+import { can } from '../../core/permissions.js';
 
 /** Renderiza solo la tabla — se reusa al buscar, para refrescar nada más
  *  que esta región y no pisar (ni hacerle perder el foco a) el buscador. */
@@ -20,10 +22,11 @@ export function renderSuppliersTable({ suppliers: rows, sortState, searchTerm = 
     ],
     rows,
     emptyMessage: emptyStateMessage(searchTerm, 'Todavía no cargaste ningún proveedor.'),
+    emptyAction: searchTerm ? null : { id: 'btn-empty-new-supplier', label: 'Nuevo proveedor' },
     rowActionsHtml: (row) => `
       <div class="row gap-2">
-        <button class="btn btn--ghost btn--icon-only" data-action="edit" data-id="${row.id}" aria-label="Editar ${escapeHtml(row.name)}">✏️</button>
-        <button class="btn btn--ghost btn--icon-only" data-action="delete" data-id="${row.id}" aria-label="Eliminar ${escapeHtml(row.name)}">🗑️</button>
+        <button class="btn btn--ghost btn--icon-only" data-action="edit" data-id="${row.id}" aria-label="Editar ${escapeHtml(row.name)}">${icon('edit')}</button>
+        ${can('delete') ? `<button class="btn btn--ghost btn--icon-only" data-action="delete" data-id="${row.id}" aria-label="Eliminar ${escapeHtml(row.name)}">${icon('delete')}</button>` : ''}
       </div>`,
   });
 }
@@ -36,7 +39,7 @@ export function renderSuppliersPage(container, { suppliers, sortState, searchTer
         <p>Datos de contacto y tiempos de entrega de tus proveedores.</p>
       </div>
       <button class="btn btn--primary" id="btn-new-supplier">
-        <span aria-hidden="true">➕</span> Nuevo proveedor
+        ${icon('add')} Nuevo proveedor
       </button>
     </header>
 

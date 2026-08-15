@@ -8,17 +8,20 @@ import { renderSuppliersPage, renderSuppliersTable, supplierFormHtml } from './s
 import { createEmptySupplier } from './supplier.model.js';
 import { openModal } from '../../components/modal.js';
 import { confirmAction } from '../../components/confirm.js';
+import { withButtonLoading } from '../../core/buttonLoading.js';
 import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError } from '../../core/errors.js';
 import { logAction } from '../../core/auditLog.js';
 import { debounce, normalizeForSearch } from '../../core/utils.js';
+import { iconElement } from '../../core/icons.js';
+import { skeletonTableHtml } from '../../components/skeletonTable.js';
 
 let sortState = { key: null, direction: 'asc' };
 let searchTerm = '';
 
 export async function render(_params, container) {
-  container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
+  container.innerHTML = skeletonTableHtml();
 
   let allSuppliers = [];
   try {
@@ -62,8 +65,9 @@ function paintTable(container, displayedSuppliers, allSuppliers) {
 }
 
 function bindEvents(container, suppliers, allSuppliers) {
-  container.querySelector('#btn-new-supplier')
-    ?.addEventListener('click', () => openSupplierForm(container, null));
+  ['#btn-new-supplier', '#btn-empty-new-supplier'].forEach((sel) => {
+    container.querySelector(sel)?.addEventListener('click', () => openSupplierForm(container, null));
+  });
 
   container.querySelector('#supplier-search')
     ?.addEventListener('input', debounce((e) => {
@@ -95,7 +99,7 @@ function bindRowActions(container, suppliers, allSuppliers) {
       });
       if (!confirmed) return;
       try {
-        await supplierService.remove(supplier.id);
+        await withButtonLoading(btn, () => supplierService.remove(supplier.id), { loadingLabel: 'Eliminando…' });
         logAction({ action: 'Eliminó', entity: 'proveedor', entityId: supplier.id, details: supplier.name });
         showToast({ type: 'success', message: `"${supplier.name}" fue eliminado.` });
         render(null, container);
@@ -166,7 +170,8 @@ function paintFieldErrors(fieldErrors) {
     const input = document.getElementById(`f-${field}`);
     if (el) {
       el.hidden = false;
-      el.textContent = `⚠ ${message}`;
+      el.textContent = '';
+      el.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(message));
       if (!el.id) el.id = `error-${field}`;
     }
     if (input) {
