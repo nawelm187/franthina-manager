@@ -7,6 +7,8 @@
 
 import { renderDataTable } from '../../components/dataTable.js';
 import { formatCurrency, escapeHtml, emptyStateMessage } from '../../core/utils.js';
+import { icon } from '../../core/icons.js';
+import { can } from '../../core/permissions.js';
 
 /** Renderiza solo la tabla (sin el resto de la página) — se reusa al buscar,
  *  para poder refrescar nada más que esta región y no pisar el buscador. */
@@ -21,7 +23,7 @@ export function renderProductsTable({ products: rows, recipesById, sortState, se
         key: 'recipeId',
         label: 'Receta',
         render: (r) => r.recipeId
-          ? `<span class="badge badge--info">📖 ${escapeHtml(recipesById.get(r.recipeId)?.name ?? 'Receta eliminada')}</span>`
+          ? `<span class="badge badge--info">${icon('menu_book')} ${escapeHtml(recipesById.get(r.recipeId)?.name ?? 'Receta eliminada')}</span>`
           : '<span class="field__hint">Sin vincular</span>',
       },
       { key: 'costPrice', label: 'Costo', sortable: true, render: (r) => formatCurrency(r.costPrice) },
@@ -40,16 +42,17 @@ export function renderProductsTable({ products: rows, recipesById, sortState, se
         key: 'active',
         label: 'Estado',
         render: (r) => r.active
-          ? '<span class="badge badge--success">✓ Activo</span>'
-          : '<span class="badge badge--danger">✕ Inactivo</span>',
+          ? `<span class="badge badge--success">${icon('check')} Activo</span>`
+          : `<span class="badge badge--danger">${icon('close')} Inactivo</span>`,
       },
     ],
     rows,
     emptyMessage: emptyStateMessage(searchTerm, 'Todavía no cargaste ningún producto. Creá el primero con el botón "Nuevo producto".'),
+    emptyAction: searchTerm ? null : { id: 'btn-empty-new-product', label: 'Nuevo producto' },
     rowActionsHtml: (row) => `
       <div class="row gap-2">
-        <button class="btn btn--ghost btn--icon-only" data-action="edit" data-id="${row.id}" aria-label="Editar ${escapeHtml(row.name)}">✏️</button>
-        <button class="btn btn--ghost btn--icon-only" data-action="delete" data-id="${row.id}" aria-label="Eliminar ${escapeHtml(row.name)}">🗑️</button>
+        <button class="btn btn--ghost btn--icon-only" data-action="edit" data-id="${row.id}" aria-label="Editar ${escapeHtml(row.name)}">${icon('edit')}</button>
+        ${can('delete') ? `<button class="btn btn--ghost btn--icon-only" data-action="delete" data-id="${row.id}" aria-label="Eliminar ${escapeHtml(row.name)}">${icon('delete')}</button>` : ''}
       </div>`,
   });
 }
@@ -62,7 +65,7 @@ export function renderProductsPage(container, { products, recipesById, sortState
         <p>Gestioná el catálogo de productos de Franthina: precios, costos y stock.</p>
       </div>
       <button class="btn btn--primary" id="btn-new-product">
-        <span aria-hidden="true">➕</span> Nuevo producto
+        ${icon('add')} Nuevo producto
       </button>
     </header>
 
@@ -115,7 +118,7 @@ export function productFormHtml(product, recipes) {
         </div>
       </div>
       <button type="button" class="btn btn--secondary" id="btn-sync-recipe-cost" style="margin-bottom: var(--space-4);" ${product.recipeId ? '' : 'disabled'}>
-        🔄 Sincronizar costo con la receta
+        ${icon('sync')} Sincronizar costo con la receta
       </button>
       <div class="field">
         <label class="field__label" for="f-stock">Stock actual</label>
@@ -143,7 +146,7 @@ export function productFormHtml(product, recipes) {
         </div>
         <div id="image-preview-wrap" ${product.imageUrl ? '' : 'hidden'} style="margin-top: var(--space-3);">
           <img id="image-preview" src="${escapeHtml(product.imageUrl)}" alt="" style="max-width: 160px; max-height: 160px; border-radius: var(--radius-md); border: var(--border-width) solid var(--surface-border); object-fit: cover; display: block;" />
-          <div id="image-preview-error" class="field__error" hidden>⚠ Esta URL no cargó una imagen válida — probá con otro link (ver la ayuda de arriba).</div>
+          <div id="image-preview-error" class="field__error" hidden>${icon('warning', { className: 'icon-inline' })}Esta URL no cargó una imagen válida — probá con otro link (ver la ayuda de arriba).</div>
         </div>
       </div>
       <div class="field">

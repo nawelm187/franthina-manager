@@ -10,18 +10,21 @@ import { renderProductsPage, renderProductsTable, productFormHtml } from './prod
 import { createEmptyProduct } from './product.model.js';
 import { openModal } from '../../components/modal.js';
 import { confirmAction } from '../../components/confirm.js';
+import { withButtonLoading } from '../../core/buttonLoading.js';
 import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError } from '../../core/errors.js';
 import { debounce, formatCurrency, normalizeForSearch, normalizeImageUrl } from '../../core/utils.js';
 import { logAction } from '../../core/auditLog.js';
+import { iconElement } from '../../core/icons.js';
+import { skeletonTableHtml } from '../../components/skeletonTable.js';
 
 let sortState = { key: null, direction: 'asc' };
 let searchTerm = '';
 
 /** @param {object} params @param {HTMLElement} container */
 export async function render(_params, container) {
-  container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
+  container.innerHTML = skeletonTableHtml();
 
   let allProducts = [];
   let recipes = [];
@@ -98,8 +101,9 @@ export function findDuplicateProductName(products, name, excludeId = null) {
 }
 
 function bindEvents(container, currentProducts, recipes, allProducts) {
-  container.querySelector('#btn-new-product')
-    ?.addEventListener('click', () => openProductForm(container, null, recipes, allProducts));
+  ['#btn-new-product', '#btn-empty-new-product'].forEach((sel) => {
+    container.querySelector(sel)?.addEventListener('click', () => openProductForm(container, null, recipes, allProducts));
+  });
 
   container.querySelector('#product-search')
     ?.addEventListener('input', debounce((e) => {
@@ -131,7 +135,7 @@ function bindRowActions(container, currentProducts, recipes, allProducts) {
       });
       if (!confirmed) return;
       try {
-        await productService.remove(product.id);
+        await withButtonLoading(btn, () => productService.remove(product.id), { loadingLabel: 'Eliminando…' });
         logAction({ action: 'Eliminó', entity: 'producto', entityId: product.id, details: product.name });
         showToast({ type: 'success', message: `"${product.name}" fue eliminado.` });
         render(null, container);
@@ -290,7 +294,8 @@ function paintFieldErrors(fieldErrors) {
     const input = document.getElementById(`f-${field === 'costPrice' ? 'cost' : field === 'sellPrice' ? 'sell' : field}`);
     if (el) {
       el.hidden = false;
-      el.textContent = `⚠ ${message}`;
+      el.textContent = '';
+      el.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(message));
       if (!el.id) el.id = `error-${field}`;
     }
     if (input) {
