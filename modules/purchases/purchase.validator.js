@@ -4,13 +4,13 @@
  */
 
 import { ValidationError } from '../../core/errors.js';
-import { isPositiveNumber, isNonNegativeNumber } from '../../core/validators.js';
+import { isPositiveNumber, isNonNegativeNumber, mustSelectMessage, FORM_HAS_ERRORS_MESSAGE } from '../../core/validators.js';
 
 export function validatePurchase(data) {
   const fieldErrors = {};
 
   if (!data.supplierId) {
-    fieldErrors.supplierId = 'Seleccioná un proveedor.';
+    fieldErrors.supplierId = mustSelectMessage('un proveedor');
   }
   if (!Array.isArray(data.items) || data.items.length === 0) {
     fieldErrors.items = 'Agregá al menos un ingrediente a la compra.';
@@ -19,6 +19,6 @@ export function validatePurchase(data) {
   }
 
   if (Object.keys(fieldErrors).length > 0) {
-    throw new ValidationError('Revisá los campos marcados en el formulario.', fieldErrors);
+    throw new ValidationError(FORM_HAS_ERRORS_MESSAGE, fieldErrors);
   }
 }

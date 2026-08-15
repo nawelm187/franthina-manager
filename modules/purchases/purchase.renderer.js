@@ -6,6 +6,7 @@
 import { renderDataTable } from '../../components/dataTable.js';
 import { formatCurrency, formatDate, escapeHtml } from '../../core/utils.js';
 import { calculatePurchaseTotal } from './purchase.model.js';
+import { icon } from '../../core/icons.js';
 
 export function renderPurchasesPage(container, { purchases, suppliersById, sortState }) {
   container.innerHTML = `
@@ -15,7 +16,7 @@ export function renderPurchasesPage(container, { purchases, suppliersById, sortS
         <p>Registrá compras a proveedores: suma stock en Inventario y actualiza el costo de cada ingrediente.</p>
       </div>
       <button class="btn btn--primary" id="btn-new-purchase">
-        <span aria-hidden="true">🧾</span> Nueva compra
+        ${icon('receipt_long')} Nueva compra
       </button>
     </header>
 
@@ -36,6 +37,7 @@ export function renderPurchasesPage(container, { purchases, suppliersById, sortS
         ],
         rows: purchases,
         emptyMessage: 'Todavía no registraste ninguna compra.',
+        emptyAction: { id: 'btn-empty-new-purchase', label: 'Nueva compra' },
       })}
     </div>
   `;
@@ -61,7 +63,7 @@ export function purchaseFormHtml(purchase, suppliers, ingredients) {
         <div id="purchase-items-list" class="stack gap-2">${rows.join('')}</div>
         <div class="field__error" data-error-for="items" hidden style="margin-top: var(--space-2);"></div>
         <button type="button" class="btn btn--secondary" id="btn-add-purchase-item" style="margin-top: var(--space-2);">
-          ➕ Agregar ingrediente
+          ${icon('add')} Agregar ingrediente
         </button>
       </fieldset>
 
@@ -93,7 +95,7 @@ function purchaseItemRowHtml(item, ingredients) {
       </select>
       <input class="input" type="number" min="0" step="0.01" data-field="quantity" value="${item.quantity || ''}" placeholder="Cantidad" style="flex:1;" />
       <input class="input" type="number" min="0" step="0.01" data-field="unitCost" value="${item.unitCost || ''}" placeholder="Costo unitario" style="flex:1;" />
-      <button type="button" class="btn btn--ghost btn--icon-only" data-remove-item aria-label="Quitar ingrediente">🗑️</button>
+      <button type="button" class="btn btn--ghost btn--icon-only" data-remove-item aria-label="Quitar ingrediente">${icon('delete')}</button>
     </div>`;
 }
 

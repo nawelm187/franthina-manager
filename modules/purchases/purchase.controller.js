@@ -11,11 +11,13 @@ import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError } from '../../core/errors.js';
 import { formatCurrency, focusNewRow, debounce, normalizeForSearch } from '../../core/utils.js';
+import { iconElement } from '../../core/icons.js';
+import { skeletonTableHtml } from '../../components/skeletonTable.js';
 
 let sortState = { key: 'createdAt', direction: 'desc' };
 
 export async function render(_params, container) {
-  container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
+  container.innerHTML = skeletonTableHtml();
 
   let allPurchases = [];
   let suppliers = [];
@@ -49,8 +51,9 @@ function paint(container, displayedPurchases, suppliers, ingredients, allPurchas
 }
 
 function bindEvents(container, suppliers, ingredients, allPurchases, suppliersById) {
-  container.querySelector('#btn-new-purchase')
-    ?.addEventListener('click', () => openPurchaseForm(container, suppliers, ingredients));
+  ['#btn-new-purchase', '#btn-empty-new-purchase'].forEach((sel) => {
+    container.querySelector(sel)?.addEventListener('click', () => openPurchaseForm(container, suppliers, ingredients));
+  });
 
   container.querySelector('#purchase-search')
     ?.addEventListener('input', debounce((e) => {
@@ -177,7 +180,8 @@ function paintFieldErrors(fieldErrors) {
     const input = document.getElementById(`f-${field}`);
     if (el) {
       el.hidden = false;
-      el.textContent = `⚠ ${message}`;
+      el.textContent = '';
+      el.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(message));
       if (!el.id) el.id = `error-${field}`;
     }
     if (input) {
