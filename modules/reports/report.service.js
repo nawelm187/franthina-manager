@@ -69,12 +69,18 @@ export const reportService = {
 
   async inventoryReport(range) {
     const movements = (await inventoryService.list()).filter((m) => isWithinRange(m.createdAt, range));
+    const ingredients = await ingredientService.list();
+    const ingredientsById = new Map(ingredients.map((i) => [i.id, i]));
     const byType = {};
     for (const m of movements) {
       const label = INVENTORY_TYPE_LABELS[m.type] ?? m.type;
       byType[label] = (byType[label] ?? 0) + 1;
     }
-    return { movements, count: movements.length, byType };
+    return {
+      movements: movements.map((m) => ({ ...m, ingredientName: ingredientsById.get(m.ingredientId)?.name ?? 'Ingrediente eliminado' })),
+      count: movements.length,
+      byType,
+    };
   },
 
   async cashboxReport(range) {

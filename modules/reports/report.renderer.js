@@ -5,8 +5,10 @@
  */
 
 import { renderDataTable } from '../../components/dataTable.js';
-import { formatCurrency, formatDate, escapeHtml } from '../../core/utils.js';
+import { formatCurrency, formatDate, formatRelativeTime, escapeHtml } from '../../core/utils.js';
 import { ORDER_STATUS_LABELS as PRODUCTION_STATUS_LABELS } from '../production/production.model.js';
+import { MOVEMENT_TYPE_LABELS } from '../inventory/inventory.model.js';
+import { icon } from '../../core/icons.js';
 
 export const REPORT_TABS = [
   { key: 'sales', label: 'Ventas' },
@@ -14,8 +16,8 @@ export const REPORT_TABS = [
   { key: 'inventory', label: 'Inventario' },
   { key: 'cashbox', label: 'Caja' },
   { key: 'purchases', label: 'Compras' },
-  { key: 'integrity', label: '🩺 Integridad' },
-  { key: 'audit', label: '📋 Auditoría' },
+  { key: 'integrity', label: `${icon('health_and_safety')} Integridad` },
+  { key: 'audit', label: `${icon('history')} Auditoría` },
 ];
 
 export function renderReportsShell(container, { range, activeTab }) {
@@ -36,7 +38,8 @@ export function renderReportsShell(container, { range, activeTab }) {
           <input class="input" type="date" id="rp-to" value="${range.to}" />
         </div>
         <button class="btn btn--secondary" id="btn-apply-range">Aplicar</button>
-        <button class="btn btn--secondary" id="btn-export-csv" style="margin-left:auto;">⬇️ Exportar CSV</button>
+        <button class="btn btn--secondary" id="btn-export-pdf" style="margin-left:auto;">${icon('picture_as_pdf')} Exportar PDF</button>
+        <button class="btn btn--secondary" id="btn-export-csv">${icon('download')} Exportar CSV</button>
       </div>
     </div>
 
@@ -102,7 +105,8 @@ export function renderInventoryReport(container, report) {
     ${renderDataTable({
       columns: [
         { key: 'createdAt', label: 'Fecha', render: (r) => formatDate(r.createdAt) },
-        { key: 'type', label: 'Tipo' },
+        { key: 'ingredientName', label: 'Ingrediente', render: (r) => escapeHtml(r.ingredientName) },
+        { key: 'type', label: 'Tipo', render: (r) => escapeHtml(MOVEMENT_TYPE_LABELS[r.type] ?? r.type) },
         { key: 'quantity', label: 'Cantidad' },
         { key: 'reason', label: 'Motivo', render: (r) => escapeHtml(r.reason || '—') },
       ],
@@ -177,7 +181,7 @@ export function renderIntegrityReport(container, result) {
           <span><strong>${issue.area}:</strong> ${issue.message}</span>
         </li>`).join('')
     : `<div class="state-panel">
-        <span class="state-panel__icon" aria-hidden="true">✅</span>
+        <span class="state-panel__icon">${icon('check_circle')}</span>
         <h3>Todo en orden</h3>
         <p>No se encontró ninguna inconsistencia en ${result.totalChecked} registros revisados.</p>
       </div>`;
@@ -208,23 +212,84 @@ function statCard(label, value) {
     </div>`;
 }
 
-/** Últimas acciones registradas (ver core/auditLog.js): quién hizo qué y cuándo. */
-export function renderAuditReport(container, logs) {
+/** Últimas acciones registradas (ver core/auditLog.js): quién hizo qué y cuándo.
+ * @param {{ logs: object[], allLogsCount: number, filters: {search:string, user:string, action:string, entity:string}, filterOptions: {users:string[], actions:string[], entities:string[]} }} data
+ */
+export function renderAuditReport(container, { logs, allLogsCount, filters, filterOptions }) {
+  if (allLogsCount === 0) {
+    container.innerHTML = `
+      <div class="state-panel">
+        <span class="state-panel__icon">${icon('history')}</span>
+        <p>Todavía no hay ninguna acción registrada.</p>
+      </div>`;
+    return;
+  }
+
+  const userOptions = filterOptions.users.map((u) => `<option value="${escapeHtml(u)}" ${filters.user === u ? 'selected' : ''}>${escapeHtml(u)}</option>`).join('');
+  const actionOptions = filterOptions.actions.map((a) => `<option value="${escapeHtml(a)}" ${filters.action === a ? 'selected' : ''}>${escapeHtml(a)}</option>`).join('');
+  const entityOptions = filterOptions.entities.map((e) => `<option value="${escapeHtml(e)}" ${filters.entity === e ? 'selected' : ''}>${escapeHtml(auditEntityLabel(e))}</option>`).join('');
+
+  const cards = logs.map((log) => {
+    const visual = auditActionVisual(log.action);
+    const hasArrow = (log.details || '').includes(' → ');
+    return `
+      <li class="audit-card audit-card--${visual.tone}">
+        <span class="audit-card__icon">${icon(visual.iconName)}</span>
+        <div class="audit-card__body">
+          <p class="audit-card__title">${escapeHtml(log.action)} <span class="audit-card__entity">${escapeHtml(auditEntityLabel(log.entity))}</span></p>
+          <p class="audit-card__meta">por ${escapeHtml(log.userEmail ?? 'desconocido')} · ${formatRelativeTime(log.createdAt)}</p>
+          ${log.details ? `<p class="audit-card__details${hasArrow ? ' audit-card__details--change' : ''}">${escapeHtml(log.details)}</p>` : ''}
+        </div>
+      </li>`;
+  }).join('');
+
   container.innerHTML = `
-    <p class="field__hint" style="margin-bottom: var(--space-4);">
-      Últimas ${logs.length} acciones registradas (eliminaciones, cambios de precio,
-      cancelaciones). Esta pestaña no usa el filtro de fechas de arriba.
+    <div class="card" style="margin-bottom: var(--space-4);">
+      <div class="row gap-3" style="flex-wrap:wrap; align-items:flex-end;">
+        <div class="field" style="margin:0; flex: 1 1 220px;">
+          <label class="field__label" for="audit-search">${icon('search', { className: 'icon-inline' })}Buscar actividad</label>
+          <input class="input" type="search" id="audit-search" placeholder="Producto, cliente, detalle..." value="${escapeHtml(filters.search)}" />
+        </div>
+        <div class="field" style="margin:0;">
+          <label class="field__label" for="audit-filter-user">Usuario</label>
+          <select class="input" id="audit-filter-user"><option value="">Todos</option>${userOptions}</select>
+        </div>
+        <div class="field" style="margin:0;">
+          <label class="field__label" for="audit-filter-action">Acción</label>
+          <select class="input" id="audit-filter-action"><option value="">Todas</option>${actionOptions}</select>
+        </div>
+        <div class="field" style="margin:0;">
+          <label class="field__label" for="audit-filter-entity">Sobre</label>
+          <select class="input" id="audit-filter-entity"><option value="">Todo</option>${entityOptions}</select>
+        </div>
+        ${(filters.search || filters.user || filters.action || filters.entity)
+          ? `<button type="button" class="btn btn--ghost" id="audit-clear-filters">${icon('close', { className: 'icon-inline' })}Limpiar filtros</button>`
+          : ''}
+      </div>
+    </div>
+
+    <p class="field__hint" style="margin-bottom: var(--space-3);">
+      Mostrando ${logs.length} de las últimas ${allLogsCount} acciones registradas. Esta pestaña no usa el filtro de fechas de arriba.
     </p>
-    ${renderDataTable({
-      columns: [
-        { key: 'createdAt', label: 'Fecha', render: (r) => new Date(r.createdAt).toLocaleString('es-AR') },
-        { key: 'userEmail', label: 'Usuario', render: (r) => escapeHtml(r.userEmail ?? '—') },
-        { key: 'action', label: 'Acción', render: (r) => escapeHtml(r.action) },
-        { key: 'entity', label: 'Sobre', render: (r) => escapeHtml(r.entity) },
-        { key: 'details', label: 'Detalle', render: (r) => escapeHtml(r.details || '—') },
-      ],
-      rows: logs,
-      emptyMessage: 'Todavía no hay ninguna acción registrada.',
-    })}
+
+    ${logs.length
+      ? `<ul class="audit-feed">${cards}</ul>`
+      : `<div class="state-panel"><span class="state-panel__icon">${icon('search')}</span><p>Ninguna acción coincide con estos filtros.</p></div>`}
   `;
+}
+
+/** Ícono + color según el verbo de la acción — extensible: si se agrega un
+ *  logAction() con un verbo nuevo, cae en el caso "default" sin romper nada. */
+function auditActionVisual(action) {
+  const a = (action || '').toLowerCase();
+  if (a.startsWith('eliminó') || a.startsWith('canceló')) return { tone: 'danger', iconName: a.startsWith('canceló') ? 'cancel' : 'delete' };
+  if (a.startsWith('modificó') || a.startsWith('editó')) return { tone: 'warning', iconName: 'edit' };
+  return { tone: 'neutral', iconName: 'history' };
+}
+
+/** "producto" -> "Producto", para que el filtro y la tarjeta se lean como
+ *  título en vez de en minúscula suelta. */
+function auditEntityLabel(entity) {
+  if (!entity) return '—';
+  return entity.charAt(0).toUpperCase() + entity.slice(1);
 }

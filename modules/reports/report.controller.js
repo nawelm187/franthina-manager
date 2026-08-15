@@ -13,11 +13,14 @@ import { supplierService } from '../suppliers/supplier.service.js';
 import { listRecentLogs } from '../../core/auditLog.js';
 import { downloadCsv } from '../../core/csv.js';
 import { handleError } from '../../core/errors.js';
+import { withButtonLoading } from '../../core/buttonLoading.js';
 import { showToast } from '../../components/toast.js';
-import { formatCurrency, formatDate } from '../../core/utils.js';
+import { formatCurrency, formatDate, debounce } from '../../core/utils.js';
 
 let currentRange = null;
 let currentTab = 'sales';
+let auditLogsCache = null;
+let auditFilters = { search: '', user: '', action: '', entity: '' };
 
 export async function render(_params, container) {
   currentRange = currentRange ?? reportService.defaultRange();
@@ -34,6 +37,11 @@ function toggleRangePicker(container) {
     const el = container.querySelector(sel);
     if (el) el.disabled = isIntegrity;
   });
+  // El PDF con diseño de documento comercial hoy existe para Ventas,
+  // Producción e Inventario — el resto sigue teniendo CSV. Si se agrega un
+  // PDF nuevo (Compras, Caja), esta lista es el único lugar que hay que tocar.
+  const pdfBtn = container.querySelector('#btn-export-pdf');
+  if (pdfBtn) pdfBtn.hidden = !['sales', 'production', 'inventory'].includes(currentTab);
 }
 
 function bindShellEvents(container) {
@@ -51,6 +59,11 @@ function bindShellEvents(container) {
   container.querySelectorAll('[data-tab]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       currentTab = btn.dataset.tab;
+      // Recargar auditoría siempre que se entra a esa pestaña — es la única
+      // que se mantiene cacheada en memoria (para poder filtrar sin volver a
+      // pedirle a Supabase en cada letra), así que si no la refrescamos acá
+      // nunca se enteraría de una acción nueva sin recargar toda la página.
+      if (currentTab === 'audit') auditLogsCache = null;
       container.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('is-active', b === btn));
       toggleRangePicker(container);
       await renderActiveTab(container);
@@ -58,6 +71,29 @@ function bindShellEvents(container) {
   });
 
   container.querySelector('#btn-export-csv')?.addEventListener('click', () => exportCurrentTab());
+
+  container.querySelector('#btn-export-pdf')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    try {
+      await withButtonLoading(btn, async () => {
+        if (currentTab === 'sales') {
+          const report = await reportService.salesReport(currentRange);
+          const { downloadSalesReportPdf } = await import('./report.pdf.js');
+          await downloadSalesReportPdf(report, currentRange);
+        } else if (currentTab === 'production') {
+          const report = await reportService.productionReport(currentRange);
+          const { downloadProductionReportPdf } = await import('./report.pdf.js');
+          await downloadProductionReportPdf(report, currentRange);
+        } else if (currentTab === 'inventory') {
+          const report = await reportService.inventoryReport(currentRange);
+          const { downloadInventoryReportPdf } = await import('./report.pdf.js');
+          await downloadInventoryReportPdf(report, currentRange);
+        }
+      }, { loadingLabel: 'Generando…' });
+    } catch (err) {
+      handleError(err, `reports:pdf:${currentTab}`);
+    }
+  });
 }
 
 async function renderActiveTab(container) {
@@ -85,12 +121,80 @@ async function renderActiveTab(container) {
       const result = await reportService.checkIntegrity();
       renderIntegrityReport(content, result);
     } else if (currentTab === 'audit') {
-      const logs = await listRecentLogs();
-      renderAuditReport(content, logs);
+      if (!auditLogsCache) auditLogsCache = await listRecentLogs();
+      renderAuditTab(content);
     }
   } catch (err) {
     handleError(err, `reports:${currentTab}`);
   }
+}
+
+function renderAuditTab(content, { preserveSearchFocus = false } = {}) {
+  const filtered = filterAuditLogs(auditLogsCache, auditFilters);
+  renderAuditReport(content, {
+    logs: filtered,
+    allLogsCount: auditLogsCache.length,
+    filters: auditFilters,
+    filterOptions: auditFilterOptions(auditLogsCache),
+  });
+  bindAuditFilterEvents(content);
+  if (preserveSearchFocus) {
+    // El re-render reemplaza todo el HTML de la pestaña (incluido el input
+    // de búsqueda) — sin esto, el cursor se "cae" del campo cada vez que el
+    // debounce dispara mientras la persona todavía está escribiendo.
+    const input = content.querySelector('#audit-search');
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }
+}
+
+function filterAuditLogs(logs, filters) {
+  const term = filters.search.trim().toLowerCase();
+  return logs.filter((log) => {
+    if (filters.user && log.userEmail !== filters.user) return false;
+    if (filters.action && log.action !== filters.action) return false;
+    if (filters.entity && log.entity !== filters.entity) return false;
+    if (term) {
+      const haystack = `${log.action} ${log.entity} ${log.details ?? ''} ${log.userEmail ?? ''}`.toLowerCase();
+      if (!haystack.includes(term)) return false;
+    }
+    return true;
+  });
+}
+
+function auditFilterOptions(logs) {
+  const uniq = (arr) => [...new Set(arr)].filter(Boolean).sort((a, b) => a.localeCompare(b, 'es'));
+  return {
+    users: uniq(logs.map((l) => l.userEmail)),
+    actions: uniq(logs.map((l) => l.action)),
+    entities: uniq(logs.map((l) => l.entity)),
+  };
+}
+
+function bindAuditFilterEvents(content) {
+  content.querySelector('#audit-search')?.addEventListener('input', debounce((e) => {
+    auditFilters = { ...auditFilters, search: e.target.value };
+    renderAuditTab(content, { preserveSearchFocus: true });
+  }, 250));
+
+  content.querySelector('#audit-filter-user')?.addEventListener('change', (e) => {
+    auditFilters = { ...auditFilters, user: e.target.value };
+    renderAuditTab(content);
+  });
+  content.querySelector('#audit-filter-action')?.addEventListener('change', (e) => {
+    auditFilters = { ...auditFilters, action: e.target.value };
+    renderAuditTab(content);
+  });
+  content.querySelector('#audit-filter-entity')?.addEventListener('change', (e) => {
+    auditFilters = { ...auditFilters, entity: e.target.value };
+    renderAuditTab(content);
+  });
+  content.querySelector('#audit-clear-filters')?.addEventListener('click', () => {
+    auditFilters = { search: '', user: '', action: '', entity: '' };
+    renderAuditTab(content);
+  });
 }
 
 async function exportCurrentTab() {
@@ -144,7 +248,7 @@ async function buildCsvTableForCurrentTab() {
     };
   }
   if (currentTab === 'audit') {
-    const logs = await listRecentLogs();
+    const logs = filterAuditLogs(auditLogsCache ?? [], auditFilters);
     return {
       headers: ['Fecha', 'Usuario', 'Acción', 'Sobre', 'Detalle'],
       rows: logs.map((l) => [formatDate(l.createdAt), l.userEmail ?? '', l.action, l.entity, l.details ?? '']),
