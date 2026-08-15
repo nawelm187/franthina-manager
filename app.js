@@ -10,7 +10,7 @@
  * - Tienda pública (ROUTES.STORE_HOME, ROUTES.STORE_CART): la ve cualquier
  *   visitante, sin login. Chrome: header + footer de tienda.
  * - Administración (todo bajo /admin): el sistema de gestión existente,
- *   intacto. Chrome: sidebar + botón ☰ en mobile.
+ *   intacto. Chrome: sidebar + botón de menú en mobile.
  *
  * Cuando la ruta activa cambia de zona, se reconstruye el "chrome" (la
  * cáscara visual alrededor del contenido) y se reubica el mismo nodo
@@ -18,6 +18,8 @@
  */
 
 import { ROUTES, NAV_ITEMS, APP_CONFIG } from './core/config.js';
+import { can } from './core/permissions.js';
+import { icon } from './core/icons.js';
 import { Router } from './core/router.js';
 import { withBase } from './core/basePath.js';
 import { store } from './core/state.js';
@@ -27,12 +29,13 @@ import { runMigrations } from './core/storage/migrations.js';
 import { initToastListener, showToast } from './components/toast.js';
 import { storeCart } from './core/storeCart.js';
 import { auth } from './core/auth.js';
+import { currentUser } from './core/currentUser.js';
 import { renderLogin } from './modules/login/index.js';
 
 installGlobalErrorHandling();
 
 const STORE_NAV_ITEMS = [
-  { route: ROUTES.STORE_HOME, label: 'Inicio', icon: '🏠' },
+  { route: ROUTES.STORE_HOME, label: 'Inicio', icon: 'home' },
 ];
 
 /** @type {HTMLElement} nodo estable, nunca se recrea — ver comentario de arriba */
@@ -59,26 +62,43 @@ function slotMainContent(container) {
   slot.replaceWith(mainContentEl);
 }
 
+/** Un módulo con datos operativos de todos los días (Ventas, Pedidos,
+ *  Producción...) lo ve cualquier rol con acceso — Reportes y Configuración
+ *  quedan reservados a quien puede actuar sobre lo que muestran. */
+function isNavItemVisible(item) {
+  if (item.route === ROUTES.REPORTS) return can('viewReports');
+  if (item.route === ROUTES.SETTINGS) return can('manageSettings');
+  return true;
+}
+
+/** Misma regla que isNavItemVisible(), pero contra la URL pedida —
+ *  ocultar el link del menú no alcanza si alguien escribe la ruta a mano. */
+function isRouteAllowedForRole(pathname) {
+  if (pathname.startsWith(ROUTES.REPORTS)) return can('viewReports');
+  if (pathname.startsWith(ROUTES.SETTINGS)) return can('manageSettings');
+  return true;
+}
+
 function buildAdminChrome() {
   document.body.innerHTML = `
     <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
     <div class="app-shell">
-      <button class="btn btn--ghost sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menú" aria-expanded="false">☰</button>
+      <button class="btn btn--ghost sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menú" aria-expanded="false">${icon('menu')}</button>
       <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
       <nav class="app-sidebar" id="app-sidebar" aria-label="Navegación principal">
         <a class="app-brand" href="${withBase(ROUTES.DASHBOARD)}" data-link aria-label="Ir al panel principal">
           <img src="assets/icons/logo-sidebar.png" alt="" class="app-brand__logo" width="40" height="40" />
           ${APP_CONFIG.appName}
         </a>
-        ${NAV_ITEMS.map((item) => `
+        ${NAV_ITEMS.filter(isNavItemVisible).map((item) => `
           <a class="nav-link" href="${withBase(item.route)}" data-link data-route="${item.route}">
-            <span class="nav-link__icon" aria-hidden="true">${item.icon}</span> ${item.label}
+            <span class="nav-link__icon">${icon(item.icon)}</span> ${item.label}
           </a>`).join('')}
         <a class="nav-link nav-link--muted" href="${withBase(ROUTES.STORE_HOME)}" data-link data-route="${ROUTES.STORE_HOME}">
-          <span class="nav-link__icon" aria-hidden="true">🛍️</span> Ver tienda online
+          <span class="nav-link__icon">${icon('shopping_bag')}</span> Ver tienda online
         </a>
         <button type="button" class="nav-link nav-link--muted" id="btn-logout" style="width:100%; text-align:left; background:none; border:none; cursor:pointer;">
-          <span class="nav-link__icon" aria-hidden="true">🚪</span> Cerrar sesión
+          <span class="nav-link__icon">${icon('logout')}</span> Cerrar sesión
         </button>
       </nav>
       <div id="main-content-slot"></div>
@@ -110,7 +130,7 @@ function buildStoreChrome() {
           ${STORE_NAV_ITEMS.map((item) => `
             <a class="nav-link" href="${withBase(item.route)}" data-link data-route="${item.route}">${item.label}</a>`).join('')}
           <a class="nav-link store-cart-link" href="${withBase(ROUTES.STORE_CART)}" data-link data-route="${ROUTES.STORE_CART}" aria-label="Ver carrito">
-            🛒 Carrito<span class="cart-badge" id="cart-badge" hidden>0</span>
+            ${icon('shopping_cart')} Carrito<span class="cart-badge" id="cart-badge" hidden>0</span>
           </a>
         </nav>
       </header>
@@ -202,7 +222,7 @@ function closeSidebar() {
 
 /**
  * Mientras el menú mobile está abierto: Escape lo cierra y devuelve el foco
- * al botón ☰; Tab queda atrapado dentro del menú (igual que en los modales,
+ * al botón de menú; Tab queda atrapado dentro del menú (igual que en los modales,
  * ver components/modal.js) para que no se escape hacia contenido oculto
  * detrás del fondo oscuro.
  */
@@ -281,6 +301,7 @@ async function init() {
   // así su guard (sincrónico, ver core/router.js) es correcto desde la
   // primerísima resolución de ruta, sin una ventana donde no se sabe todavía.
   const initialSession = await auth.ready();
+  await currentUser.refresh(initialSession);
   if (initialSession) await ensureMigrations();
 
   const router = new Router(mainContentEl);
@@ -308,10 +329,21 @@ async function init() {
 
   // Bloquea cualquier ruta de /admin sin sesión: en vez de dejar que el
   // Router cargue el módulo protegido (que ya arrancaría a pedir datos),
-  // muestra el login y no carga nada más.
+  // muestra el login y no carga nada más. Con sesión pero sin permiso para
+  // ESA ruta puntual (ej. un empleado escribiendo la URL de Configuración
+  // a mano), no tiene sentido mostrarle el login — ya inició sesión — así
+  // que lo manda al Dashboard en cambio.
   router.setGuard({
-    test: (pathname) => zoneOf(pathname) !== 'admin' || Boolean(auth.getCachedSession()),
-    onBlocked: () => {
+    test: (pathname) => {
+      if (zoneOf(pathname) !== 'admin') return true;
+      if (!auth.getCachedSession()) return false;
+      return isRouteAllowedForRole(pathname);
+    },
+    onBlocked: (pathname) => {
+      if (auth.getCachedSession()) {
+        router.navigate(ROUTES.DASHBOARD);
+        return;
+      }
       currentZone = 'login';
       buildLoginChrome();
     },
@@ -332,6 +364,7 @@ async function init() {
     const isAuthenticated = Boolean(session);
     if (isAuthenticated === wasAuthenticated) return;
     wasAuthenticated = isAuthenticated;
+    await currentUser.refresh(session);
     if (isAuthenticated) await ensureMigrations();
     router.start();
   });

@@ -13,13 +13,17 @@ admin: todo el sistema de gestión vive ahora en `/admin`, y `/` es la tienda
 que ve cualquier visitante. Un pedido hecho desde la tienda crea un Pedido
 real, visible en `/admin/pedidos`. Desde v0.22, tanto la tienda como
 `/admin/pedidos` tienen integración con WhatsApp (links `wa.me`, sin API ni
-backend) para mandar el resumen del pedido con un toque. Con esto el núcleo
-comercial completo del brief original está cubierto — ver `docs/ROADMAP.md`
-para lo que queda (login/roles reales, multiusuario, SaaS, integraciones).
+backend) para mandar el resumen del pedido con un toque. Desde v0.25, los
+datos viven en Supabase (no en el navegador) y `/admin` está protegido por
+login real (Supabase Auth) — ver `core/auth.js` y `core/router.js`. Con esto
+el núcleo comercial completo del brief original está cubierto — ver
+`docs/ROADMAP.md` para lo que queda (roles/permisos reales, multiusuario,
+SaaS, integraciones).
 
-**Importante**: `/admin` todavía no tiene login — es una URL más, no un área
-protegida. No compartas ese link públicamente hasta que exista autenticación
-real (ver `docs/ROADMAP.md`).
+**Importante**: aunque `/admin` ya pide login, los roles/permisos por tipo de
+usuario todavía no están implementados — cualquier cuenta con sesión iniciada
+tiene acceso completo. No crees cuentas para empleados todavía (ver
+`docs/ROADMAP.md`, "Usuarios y roles").
 
 ## Cómo ejecutarlo
 

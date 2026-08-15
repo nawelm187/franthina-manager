@@ -1,5 +1,445 @@
 # Changelog
 
+## [0.31.3] — Checklist de seguridad consolidado
+Cierra (a medias, a propósito) el último punto de "Próximo enfoque
+recomendado": tests de seguridad RLS y end-to-end. Construir esa
+infraestructura de verdad (credenciales de varios roles simulados contra
+Supabase, o un navegador real automatizado) es una obra en sí misma, y es
+justo lo que el propio ROADMAP dice que no conviene levantar sin un caso
+de uso concreto delante. La alternativa pragmática: cada `.sql` de esta
+ronda de trabajo (v0.29.2 a v0.31.2) ya traía su propia sección de
+"Verificación (opcional)" comentada, dispersa en 6 archivos distintos.
+
+### Agregado
+- `docs/SECURITY_CHECKLIST.md`: todas esas verificaciones juntas en un
+  solo lugar, en orden, tildables, para correr a mano contra un Supabase
+  real después de aplicar las migraciones — incluye explícitamente el
+  punto que quedó sin cerrar en v0.31.2 (la política de INSERT directo en
+  `orders`), para que no se pierda de vista.
+
+### No incluido, a propósito
+- Tests automatizados de RLS (necesitarían credenciales de prueba por rol
+  y un entorno de Supabase dedicado) y tests end-to-end con navegador real
+  (Playwright o similar) — ninguno de los dos tiene un caso de uso
+  concreto todavía que justifique la infraestructura. Se retoma el día
+  que aparezca esa necesidad real, no antes.
+
+## [0.31.2] — Precio del checkout, calculado en el servidor
+Último punto de la lista de seguridad/robustez que quedó pendiente de la
+revisión: `store-cart.controller.js` armaba el pedido con el precio que el
+propio navegador tenía calculado. En uso normal siempre es el precio real
+(viene de un fetch a Supabase al cargar la página) — pero nada impedía
+que alguien con la consola del navegador abierta llamara a
+`orderService.create()` a mano con un precio inventado antes de mandarlo.
+
+### Agregado
+- `franthina_schema_v031_2_public_order_price.sql`: `create_public_order()`
+  — recibe únicamente `productId` + `quantity` por línea, nunca un precio;
+  calcula el total leyendo el `sellPrice` real de cada producto en el
+  momento de crear el pedido, y rechaza productos inactivos o inexistentes.
+  A diferencia de `create_sale_atomic()`, este lo puede ejecutar el rol
+  `anon` (sin sesión) — es justamente el checkout de invitado.
+- `orderService.createFromPublicStore()`: nuevo método específico para el
+  checkout público (distinto de `create()`, que sigue confiando en el
+  precio para pedidos armados desde `/admin/pedidos`, donde SÍ tiene
+  sentido — un admin puede querer aplicar un descuento manual a mano). En
+  modo local (sin Supabase) sigue con el precio del catálogo cargado en el
+  navegador, mismo comportamiento de siempre.
+
+### Seguridad — lo que esto NO cierra todavía
+- Esta migración cierra el camino fácil (usar la consola del navegador
+  sobre la app en uso normal), no el único camino posible: si la tabla
+  `orders` todavía tiene una política de INSERT que deja a `anon` insertar
+  una fila directo, alguien con más esfuerzo (hablarle a la API REST de
+  Supabase a mano, sin pasar por esta función) todavía podría forzar un
+  total. Cerrar eso significa restringir esa política de INSERT — a
+  propósito no se tocó todavía: hacerlo sin haber confirmado primero que
+  `create_public_order()` funciona bien en producción podría dejar el
+  checkout público roto. Se cierra en cuanto esté confirmado.
+
+## [0.31.1] — Concurrencia real: Producción tampoco se pisa el stock
+Mismo problema que resolvió v0.31.0 para Ventas, pero con más superficie:
+completar una orden de producción toca tres tablas a la vez (descuenta
+ingredientes, registra un movimiento de inventario por cada uno, y suma
+stock a los productos vinculados a la receta).
+
+### Agregado
+- `franthina_schema_v031_1_production_concurrency.sql`:
+  `complete_production_order_atomic()` — bloquea la orden, los
+  ingredientes involucrados y los productos vinculados, y hace todo en una
+  sola transacción. Bloquea siempre en el mismo orden (por id) para
+  evitar deadlocks entre dos producciones que comparten ingredientes.
+- Bonus de bloquear la orden misma con `for update`: un doble clic sobre
+  "Completar" ya no puede completar la misma orden dos veces (verifica que
+  siga en estado "planned" dentro de la misma transacción) — algo que ni
+  el camino anterior en JavaScript prevenía.
+- `StorageAdapter`/`CloudStorageAdapter`: nuevo
+  `completeProductionOrderAtomic()`, mismo patrón que
+  `createSaleAtomic()` de v0.31.0.
+
+### Cambiado
+- `production.service.js`: `complete()` usa el camino atómico cuando
+  `storage.supportsAtomicOps()` es true. En modo local (sin Supabase) el
+  comportamiento no cambió — sigue con `runAtomic()` en JavaScript.
+
+## [0.31.0] — Concurrencia real: Ventas ya no se pisan el stock
+`core/storage/atomicRun.js` ya documentaba el problema en sus propios
+comentarios: confirmar una venta era leer el stock → calcular en
+JavaScript → guardar, sin ninguna transacción real de por medio. Con un
+solo cajero nunca importó. Con dos vendiendo el mismo producto al mismo
+tiempo, ambos podían leer el mismo stock y el segundo guardado pisaba al
+primero en silencio — se vendía de más sin que nadie se enterara.
+
+### Agregado
+- `franthina_schema_v031_sale_concurrency.sql`: función `create_sale_atomic()`
+  en Postgres — bloquea (`for update`) las filas de los productos
+  involucrados, verifica stock, descuenta y crea la venta, todo dentro de
+  una sola transacción. Si dos ventas piden el mismo producto al mismo
+  tiempo, Postgres las serializa en vez de dejarlas pisarse; los productos
+  se bloquean siempre en el mismo orden (por id) para no arriesgarse a un
+  deadlock entre dos ventas que comparten productos en distinto orden.
+- `StorageAdapter` (clase base) suma `supportsAtomicOps()` (false por
+  defecto) y `createSaleAtomic()`. Solo `CloudStorageAdapter` los
+  implementa — localStorage no tiene transacciones reales que ofrecer, así
+  que el modo local sigue con el camino anterior (`runAtomic` en
+  JavaScript, con rollback best-effort) sin ningún cambio de
+  comportamiento.
+
+### Cambiado
+- `sale.service.js`: `create()` ahora usa el camino atómico cuando está
+  disponible (`storage.supportsAtomicOps()`). El chequeo de disponibilidad
+  contra el stock actual se mantiene ANTES, tal cual estaba — sigue dando
+  el mensaje completo de qué productos faltan; es "optimista" (puede
+  quedar desactualizado por una venta concurrente que pasó justo en el
+  medio), y por eso la garantía real de que nunca se venda de más queda en
+  el paso de Postgres, no en ese chequeo.
+
+### Pendiente, a propósito
+- El mismo problema existe en `production.service.js` al completar una
+  orden (consume stock de ingredientes, suma stock de producto) — con más
+  superficie de cambio que Ventas (toca Inventario y Productos a la vez),
+  así que se decidió resolver Ventas primero y no apurar los dos juntos.
+  Mismo patrón, próxima versión.
+
+## [0.30.1] — DELETE restringido a admin/manager, de verdad esta vez
+La v0.30.0 dejó anotado que faltaba la barrera del lado del servidor para
+"eliminar" — se había evaluado y descartado por el riesgo de escribir
+políticas RLS sin ver el schema completo de cada tabla de negocio.
+Revisando `core/storage/CloudStorageAdapter.js` con más cuidado, resultó
+que ese riesgo era menor del esperado: todas las tablas de negocio
+comparten la misma forma exacta — `(id, created_at, updated_at, data
+jsonb)`, sin columnas propias por tabla que adivinar. Y usando una
+política **restrictiva** (`as restrictive`, se combina con AND sobre
+cualquier política permisiva ya existente) no hace falta conocer ni tocar
+el nombre de la policy de DELETE que ya hubiera — solo se le agrega una
+condición más encima, sin poder aflojar nada de lo que ya estaba.
+
+### Seguridad
+- `franthina_schema_v030_1_delete_permissions.sql`: `DELETE` ahora
+  requiere rol `admin` o `manager` en las 11 tablas de negocio (Productos,
+  Ingredientes, Recetas, Inventario, Producción, Clientes, Ventas, Caja
+  ×2, Pedidos, Proveedores, Compras) — `SELECT`/`INSERT`/`UPDATE` no se
+  tocan. `system_logs` queda afuera a propósito: ya es de solo agregar
+  desde v0.29.1, ni un admin puede borrar un registro de auditoría.
+
+## [0.30.0] — Roles y permisos, primer paso
+Hasta ahora `profiles.role` existía (admin/manager/employee/pending) pero
+sin ninguna consecuencia real: una vez que alguien salía de 'pending', daba
+exactamente lo mismo qué rol tuviera — acceso completo a todo. Y para
+sacar a alguien de 'pending' en primer lugar, no había otra forma que
+entrar a mano al SQL Editor de Supabase (gap que se había detectado y
+documentado, sin resolver, en una revisión anterior).
+
+Se resuelven las dos cosas juntas porque son la misma funcionalidad en
+realidad: no tiene sentido dejar elegir un rol desde la UI si ese rol no
+cambia nada.
+
+### Agregado
+- **Gestión de roles desde la UI.** Configuración → "Usuarios con acceso"
+  ahora tiene un `<select>` por usuario (solo visible para admin) en vez
+  del badge de solo lectura de antes. Cambiar un rol pide confirmación
+  (más énfasis si el cambio involucra el rol admin), queda en el registro
+  de auditoría, y nadie puede tocar su propio rol desde acá — ni para
+  degradarse ni para promoverse (el trigger del lado del servidor ya lo
+  hubiera rechazado igual, pero mostrarlo deshabilitado es más claro que
+  un error sin contexto).
+- `core/permissions.js`: mapa único de qué puede hacer cada rol —
+  `manageUsers`, `manageSettings`, `viewReports`, `delete`. Hoy: admin
+  tiene los cuatro; manager tiene `viewReports` y `delete`; employee y
+  pending no tienen ninguno. En modo local (sin Supabase) no hay roles
+  reales, así que se comporta como admin — igual que ya hacía el resto de
+  la app en ese modo.
+- `core/currentUser.js`: caché sincrónica del propio perfil (mismo patrón
+  que `auth.js` ya usa para la sesión), para que la UI sepa el rol antes
+  del primer render.
+- Reportes y Configuración desaparecen del menú para quien no tiene
+  `viewReports` / `manageSettings` — y la ruta también queda bloqueada si
+  alguien la escribe a mano (con sesión pero sin permiso, el guard del
+  Router manda al Dashboard en vez de mostrar el login).
+- El botón "Eliminar" de la tabla desaparece para quien no tiene `delete`
+  en Productos, Ingredientes, Recetas, Clientes, Proveedores y Producción.
+
+### Seguridad
+- `franthina_schema_v030_roles.sql`: agrega la política RLS que le
+  faltaba a `profiles` para que un admin pueda efectivamente actualizar el
+  rol de otro usuario (sin esto, la UI nueva no tiene cómo guardar nada).
+
+### Pendiente, a propósito (resuelto en v0.30.1 — ver arriba)
+- Todo lo de arriba es la capa de experiencia — oculta un botón que no te
+  sirve, no te deja llegar a un menú al que no vas a poder entrar. La
+  barrera real para `delete` en las tablas de negocio (Productos,
+  Ventas, etc.) tendría que vivir en RLS, no en el cliente, y escribir esas
+  políticas a ciegas (sin ver el schema actual completo de cada tabla) es
+  más riesgo del que vale la pena correr en este paso. Queda para una
+  próxima versión, con el `.sql` actual de esas tablas a mano.
+
+## [0.29.9] — PDFs profesionales para Producción e Inventario
+Extiende el sistema de PDFs de v0.29.8 a los dos reportes que quedaban
+pendientes. Ningún archivo del "motor" (`core/pdf.js`) cambió — solo se
+agregaron dos funciones nuevas a `modules/reports/report.pdf.js`, que es
+justamente el punto de tener un núcleo reutilizable.
+
+### Agregado
+- `downloadProductionReportPdf()`: resumen de una orden de producción —
+  fecha de finalización, receta, cantidad de lotes y estado.
+- `downloadInventoryReportPdf()`: movimientos de inventario del período,
+  con el nombre del ingrediente resuelto (ver "Corregido" abajo).
+- Botón "Exportar PDF" en Reportes ahora visible en las pestañas Ventas,
+  Producción e Inventario (antes solo en Ventas).
+
+### Corregido
+- `reportService.inventoryReport()` devolvía cada movimiento con solo el
+  `ingredientId` (un UUID) — la tabla de Inventario en pantalla nunca
+  mostró qué ingrediente era cada movimiento, ni la exportación a CSV.
+  Ahora el service resuelve `ingredientName` igual que `productionReport()`
+  ya resolvía `recipeName`, y tanto la tabla en pantalla como el PDF nuevo
+  muestran el nombre real.
+- La columna "Tipo" de movimiento en pantalla mostraba el valor interno
+  crudo (`in`/`out`) en vez de la etiqueta en español — ahora usa
+  `MOVEMENT_TYPE_LABELS`, igual que ya hacía el resumen de arriba de la
+  tabla.
+
+## [0.29.8] — Primeros PDFs: comprobante de pedido y reporte de ventas
+No existía generación de PDF en ningún lugar de la app. Se construyó desde
+cero, empezando por un núcleo reutilizable en vez de resolver cada
+documento por separado — la app va a necesitar más tipos de PDF a futuro
+(inventario, producción) y no tenía sentido repetir la lógica de
+encabezado/pie/paginación en cada uno.
+
+### Agregado
+- `core/pdf.js`: motor de PDF con encabezado ("FRANTHINA" + nombre del
+  documento) y pie ("Franthina Manager · Generado el DD/MM/AAAA · Página X
+  de Y") consistentes en todo lo que la app genere. Usa `pdf-lib` (MIT)
+  cargado por CDN — mismo patrón que ya usa `core/supabaseClient.js` para
+  Supabase, sin agregar build tools nuevos. Salto de página automático;
+  las tablas repiten su encabezado de columnas si cruzan a la página
+  siguiente.
+- Comprobante de pedido (`modules/orders/order.pdf.js`): botón nuevo por
+  fila en Pedidos. Cliente, teléfono, fecha de entrega, tabla de items,
+  total, seña cobrada y saldo pendiente.
+- Reporte de ventas en PDF (`modules/reports/report.pdf.js`): botón
+  "Exportar PDF" junto al CSV existente en la pestaña Ventas de Reportes.
+  Desglose por método de pago + detalle completo del período.
+- Ambos módulos cargan `pdf-lib` con `import()` dinámico — nadie que solo
+  mira la lista de pedidos o reportes paga el peso de la librería sin
+  pedir un PDF.
+
+### Nota de diseño
+- Nada de UUIDs ni ids internos en los documentos — el folio del pedido es
+  `id.slice(0, 8).toUpperCase()`, pensado para que lo lea un cliente, no
+  para debug.
+
+## [0.29.7] — Auditoría: de tabla genérica a feed de tarjetas
+La pestaña de Auditoría en Reportes (agregada en v0.29, sin versionar
+todavía en ese momento) era una tabla de 5 columnas sin filtros — la
+"tabla microscópica" clásica en celular, y sin forma de buscar una acción
+puntual entre 200 registros.
+
+### Cambiado
+- `modules/reports/report.renderer.js`: `renderAuditReport()` ahora dibuja
+  un feed de tarjetas — ícono + color según el tipo de acción (rojo para
+  eliminar/cancelar, naranja para modificar, neutro para el resto),
+  título, "por usuario · hace 12 minutos", y el detalle (ej. cambio de
+  precio) destacado en su propia línea en vez de perdido en una celda.
+- `core/utils.js`: nueva `formatRelativeTime()` ("hace 12 minutos", "hace
+  3 horas", fecha corta a partir de una semana).
+
+### Agregado
+- Búsqueda libre + 3 filtros (usuario, acción, sobre qué) en la pestaña de
+  Auditoría, con las opciones generadas dinámicamente desde los logs ya
+  cargados — ningún valor hardcodeado, un verbo de acción nuevo aparece
+  solo en el filtro sin tocar código.
+- El filtrado es 100% client-side sobre los últimos 200 logs ya traídos:
+  no vuelve a pedirle nada a Supabase por cada letra tipeada. El CSV de
+  auditoría ahora exporta lo que está filtrado en pantalla, no siempre los
+  200 registros completos.
+
+### Corregido
+- El re-render en cada tecla del buscador hacía que el cursor "se cayera"
+  del campo apenas el debounce disparaba. Se guarda y restaura el foco
+  después de cada re-render.
+
+## [0.29.6] — Responsive de tablas: reforzando lo que ya existía
+El modo tarjeta responsive de las tablas (`data-label` + CSS a 767px) ya
+estaba implementado de una sesión anterior en las 17 tablas de la app, vía
+el componente centralizado `components/dataTable.js`. Quedaban dos
+detalles reales al revisarlo con lupa.
+
+### Corregido
+- `design-system/components.css`: un nombre de producto largo se
+  comprimía contra su label en pantallas de 320-360px hasta quedar
+  ilegible (`justify-content: space-between` sin `flex-wrap`). Ahora esos
+  casos bajan a su propia línea.
+- La fila de "Acciones" (botones editar/eliminar) quedaba empujada contra
+  el label "Acciones" en vez de agruparse prolijamente a la derecha.
+
+## [0.29.5] — Validación centralizada + CTA en estados vacíos
+### Cambiado
+- `core/validators.js`: nuevas funciones que arman los mensajes de error
+  (`requiredTextMessage`, `notNegativeMessage`, `mustBePositiveMessage`,
+  `invalidValueMessage`, `invalidEmailMessage`, `mustSelectMessage`) más
+  la constante `FORM_HAS_ERRORS_MESSAGE`. Los 11 `*.validator.js` ya
+  tenían mensajes consistentes entre sí, pero por copiar y pegar el mismo
+  texto en cada archivo, no por una fuente única — nada impedía que un
+  módulo nuevo divergiera. Ahora la redacción está garantizada por código.
+- `components/dataTable.js`: `renderDataTable()` acepta un `emptyAction`
+  opcional que dibuja un botón dentro del panel de "no hay datos todavía".
+  Conectado en los 10 módulos con tabla, reusando el mismo handler que ya
+  abría el formulario de alta — no aparece cuando el vacío es "sin
+  resultados para tu búsqueda" (ahí no tiene sentido ofrecer crear uno
+  nuevo).
+
+## [0.29.4] — Skeleton loading con forma de tabla
+### Cambiado
+- `components/skeletonTable.js` (nuevo): placeholder con la silueta real
+  de una tabla (título + filas con barras), reemplazando el rectángulo
+  genérico de 240px que se mostraba en las 14 pantallas de listado
+  mientras cargaban los datos.
+
+## [0.29.3] — Estados de carga: spinner y bloqueo de doble-envío
+`components/modal.js` ya evitaba el doble-envío en formularios (de una
+sesión anterior), pero lo hacía en silencio — el botón se deshabilitaba
+sin ningún indicio visual de que algo estaba pasando, el antipatrón
+clásico de "clic → pantalla congelada". Y las acciones confirmadas con
+`confirmAction()` pero ejecutadas fuera de un modal (entregar pedido,
+completar producción, eliminar una fila) no tenían ninguna protección: el
+modal de confirmación se cierra al instante y el trabajo real corre
+después, sin nadie bloqueando el botón.
+
+### Agregado
+- `core/buttonLoading.js`: `withButtonLoading(boton, tarea)` — deshabilita
+  el botón y le pone spinner mientras la tarea está en curso, restaura el
+  estado original al terminar. Aplicado en los 8 controladores que
+  confirman una acción y la ejecutan fuera de un modal.
+
+### Cambiado
+- `components/modal.js`: el botón que se tocó ahora muestra spinner +
+  "Guardando…" (u otro texto según la acción); el resto de los botones se
+  deshabilita sin cambiar de texto, para que quede claro cuál acción está
+  en curso.
+
+## [0.29.2] — Íconos de Google en vez de emojis + segundo fix de seguridad
+### Cambiado
+- Los 128 emojis usados en la UI (~40 archivos) fueron reemplazados por
+  Google Material Symbols, cargado igual que el resto de las tipografías
+  de la marca. Nuevo `core/icons.js` con `icon()` (para HTML armado en
+  template strings) e `iconElement()` (para los ~15 lugares que escribían
+  directo a `textContent` — ahí se usa un nodo de DOM real en vez de
+  `innerHTML`, para no abrir una vía de XSS al mezclar HTML con un
+  mensaje que en algún momento podría incluir texto de un campo).
+
+### Seguridad
+- `system_logs` aceptaba `insert` de cualquier cuenta autenticada con
+  `with check (true)`, y el cliente arma el campo `userEmail` antes de
+  mandarlo — nada impedía insertar un registro de auditoría falso
+  atribuido a otra persona. Se agregó un trigger `BEFORE INSERT` que
+  ignora lo que el cliente haya mandado en `userEmail`/`actorId` y los
+  pisa siempre con la identidad real de `auth.uid()`
+  (`franthina_schema_v029_2_audit_fix.sql`).
+
+## [0.29.1] — Correcciones de seguridad tras una revisión
+Una revisión externa de la v0.29 encontró varios problemas reales. Se
+verificó cada uno contra el código antes de tocar nada, y se priorizó por
+severidad real — no por cantidad de items. Esto es lo que se corrigió
+ahora; lo que se decidió postergar (con la razón) quedó documentado en
+`docs/ROADMAP.md`, sección "Próximo enfoque recomendado".
+
+### Corregido — crítico
+- **Cualquiera con la clave pública del sitio podía crearse una cuenta y
+  quedar administrador automáticamente.** Supabase permite registro por
+  email por defecto, y `profiles.role` tenía `'admin'` como valor por
+  defecto para cualquier cuenta nueva. Ahora los usuarios nuevos quedan
+  `'pending'` (sin acceso a nada) hasta que un administrador les asigne un
+  rol a mano. Además, un trigger en la base impide que cualquier cuenta se
+  otorgue un rol a sí misma, sin importar por dónde se intente el cambio.
+- **La auditoría se podía leer y modificar con cualquier cuenta
+  autenticada.** Ahora `system_logs` es de solo agregar — ni un
+  administrador puede editar o borrar un registro una vez creado — y la
+  lectura queda restringida a cuentas con rol `'admin'`.
+- **El botón "Enviar pedido por WhatsApp" nunca aparecía para un cliente
+  real.** El número de WhatsApp vivía en una tabla que la tienda pública
+  (sin sesión) no tenía permiso de leer — `hydrateBusinessSettings()`
+  fallaba en silencio y el campo quedaba siempre vacío. Se agregó
+  `get_public_business_config()`, con el mismo patrón que ya usaba el
+  catálogo (`get_public_products()`): expone solo lo necesario (el
+  WhatsApp) sin sesión, sin abrir el resto de la configuración.
+
+### Corregido — importante
+- `modules/settings/index.js`: el aviso "Número de WhatsApp guardado" se
+  mostraba sin esperar a que el guardado en la nube efectivamente
+  terminara — si fallaba, igual decía que se había guardado. Ahora espera
+  la confirmación real y avisa si falla.
+- `CloudStorageAdapter.getMeta()` escondía cualquier error (sin permiso,
+  sin conexión, lo que sea) detrás de un simple `null`, dificultando
+  diagnosticar problemas reales. Ahora solo trata como "sin valor
+  guardado" el caso genuino de que no haya nada guardado, y deja pasar
+  cualquier otro error para que quien lo llama decida qué hacer — por eso
+  también se ajustó `hydrateA11yPrefs()` para tolerar la falta de sesión
+  (visitante de la tienda) sin romper nada.
+
+### Documentación
+- `core/config.js`, `README.md`, `docs/ROADMAP.md`: corregidos varios
+  comentarios que ya no reflejaban la realidad (decían que `/admin` no
+  tenía login, cuando ya lo tiene desde v0.25) — la propia revisión marcó
+  esto como peligroso para el mantenimiento futuro, con razón.
+- `docs/ROADMAP.md`: se documentaron las versiones v0.23 a v0.29.1, que
+  faltaban, y se agregó una lista concreta de lo que queda pendiente
+  (concurrencia real vía transacciones de Postgres, precio/stock del
+  checkout calculado en el servidor, roles con restricciones reales, tests
+  de seguridad y end-to-end) con la razón de por qué se posterga cada uno.
+
+## [Sin versionar] — v0.29: auditoría (quién hizo qué y cuándo)
+Registro de acciones importantes o irreversibles, guardado en la tabla
+`system_logs` que ya existía desde el primer script SQL (v0.25) pero
+todavía no se usaba. Elegido antes que terminar los roles/permisos (v0.27
+completo) porque no toca la infraestructura de auth recién verificada —
+es 100% aditivo y de bajo riesgo.
+
+### Agregado
+- `core/auditLog.js`: `logAction()` (registra una acción; nunca interrumpe
+  la acción principal si falla el registro en sí) y `listRecentLogs()`
+  (lee las últimas acciones registradas). Sin efecto con localStorage —
+  solo tiene sentido con Supabase, donde sí hay un "quién".
+- Nueva pestaña "📋 Auditoría" en Reportes: lista de fecha, usuario, acción,
+  sobre qué y detalle — con exportación a CSV, igual que el resto de las
+  pestañas.
+- Quedaron registradas: eliminar producto/ingrediente/receta/cliente/
+  proveedor, cambiar el precio de venta de un producto, y cancelar un
+  pedido. Se puede seguir sumando más acciones más adelante sin tocar nada
+  de lo ya hecho — cada `logAction()` es independiente.
+
+## [Sin versionar] — Fix: campo de email demasiado angosto
+Reportado al probar el checkout de la tienda: el campo de email compartía
+fila con el de teléfono, y al ser un campo típicamente largo (usuario +
+@ + dominio), el texto se cortaba mientras se escribía — costaba revisar
+lo que se había tecleado. Mismo problema encontrado también en el
+formulario de Clientes del admin (mismo patrón, mismo arreglo).
+
+### Corregido
+- `modules/store-cart/store-cart.renderer.js`, `modules/customers/customer.renderer.js`:
+  teléfono y email ahora ocupan cada uno una fila completa, en vez de
+  compartir el ancho a la mitad.
+
 ## [Sin versionar] — v0.27, primer paso: visibilidad de usuarios
 Primera parte de "Usuarios y roles" del roadmap, a propósito acotada: hoy
 hay un solo usuario (vos), y todavía no se probó el login básico — así que
