@@ -4,23 +4,23 @@
  */
 
 import { ValidationError } from '../../core/errors.js';
-import { isNonEmptyString, isNonNegativeNumber, isOneOf } from '../../core/validators.js';
+import { isNonEmptyString, isNonNegativeNumber, isOneOf, requiredTextMessage, notNegativeMessage, invalidValueMessage, FORM_HAS_ERRORS_MESSAGE } from '../../core/validators.js';
 import { UNITS } from './ingredient.model.js';
 
 export function validateIngredient(data) {
   const fieldErrors = {};
 
   if (!isNonEmptyString(data.name, 2)) {
-    fieldErrors.name = 'El nombre debe tener entre 2 y 200 caracteres.';
+    fieldErrors.name = requiredTextMessage('El nombre');
   }
   if (!isOneOf(data.unit, UNITS)) {
-    fieldErrors.unit = 'Unidad inválida.';
+    fieldErrors.unit = invalidValueMessage('La unidad', { fem: true });
   }
-  if (!isNonNegativeNumber(data.stock)) fieldErrors.stock = 'El stock no puede ser negativo.';
-  if (!isNonNegativeNumber(data.minStock)) fieldErrors.minStock = 'El stock mínimo no puede ser negativo.';
-  if (!isNonNegativeNumber(data.cost)) fieldErrors.cost = 'El costo no puede ser negativo.';
+  if (!isNonNegativeNumber(data.stock)) fieldErrors.stock = notNegativeMessage('El stock');
+  if (!isNonNegativeNumber(data.minStock)) fieldErrors.minStock = notNegativeMessage('El stock mínimo');
+  if (!isNonNegativeNumber(data.cost)) fieldErrors.cost = notNegativeMessage('El costo');
 
   if (Object.keys(fieldErrors).length > 0) {
-    throw new ValidationError('Revisá los campos marcados en el formulario.', fieldErrors);
+    throw new ValidationError(FORM_HAS_ERRORS_MESSAGE, fieldErrors);
   }
 }

@@ -8,18 +8,21 @@ import { renderIngredientsPage, renderIngredientsTable, ingredientFormHtml } fro
 import { createEmptyIngredient } from './ingredient.model.js';
 import { openModal } from '../../components/modal.js';
 import { confirmAction } from '../../components/confirm.js';
+import { withButtonLoading } from '../../core/buttonLoading.js';
 import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError } from '../../core/errors.js';
 import { logAction } from '../../core/auditLog.js';
 import { recipeService } from '../recipes/recipe.service.js';
 import { debounce, normalizeForSearch } from '../../core/utils.js';
+import { iconElement } from '../../core/icons.js';
+import { skeletonTableHtml } from '../../components/skeletonTable.js';
 
 let sortState = { key: null, direction: 'asc' };
 let searchTerm = '';
 
 export async function render(_params, container) {
-  container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
+  container.innerHTML = skeletonTableHtml();
 
   let allItems = [];
   try {
@@ -98,8 +101,9 @@ export function findDuplicateIngredientName(items, name, excludeId = null) {
 }
 
 function bindEvents(container, displayedItems, allItems) {
-  container.querySelector('#btn-new-ingredient')
-    ?.addEventListener('click', () => openIngredientForm(container, null, allItems));
+  ['#btn-new-ingredient', '#btn-empty-new-ingredient'].forEach((sel) => {
+    container.querySelector(sel)?.addEventListener('click', () => openIngredientForm(container, null, allItems));
+  });
 
   container.querySelector('#ingredient-search')
     ?.addEventListener('input', debounce((e) => {
@@ -142,7 +146,7 @@ function bindRowActions(container, displayedItems, allItems) {
       });
       if (!confirmed) return;
       try {
-        await ingredientService.remove(item.id);
+        await withButtonLoading(btn, () => ingredientService.remove(item.id), { loadingLabel: 'Eliminando…' });
         logAction({ action: 'Eliminó', entity: 'ingrediente', entityId: item.id, details: item.name });
         showToast({ type: 'success', message: `"${item.name}" fue eliminado.` });
         render(null, container);
@@ -220,7 +224,8 @@ function paintFieldErrors(fieldErrors) {
     const input = document.getElementById(`f-${field}`);
     if (el) {
       el.hidden = false;
-      el.textContent = `⚠ ${message}`;
+      el.textContent = '';
+      el.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(message));
       if (!el.id) el.id = `error-${field}`;
     }
     if (input) {
