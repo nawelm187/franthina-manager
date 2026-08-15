@@ -7,6 +7,8 @@
 import { renderDataTable } from '../../components/dataTable.js';
 import { formatDate, escapeHtml } from '../../core/utils.js';
 import { ORDER_STATUS, ORDER_STATUS_LABELS } from './production.model.js';
+import { icon } from '../../core/icons.js';
+import { can } from '../../core/permissions.js';
 
 const STATUS_BADGE_VARIANT = {
   [ORDER_STATUS.PLANNED]: 'info',
@@ -22,7 +24,7 @@ export function renderProductionPage(container, { orders, recipesById }) {
         <p>Planificá lotes de producción a partir de tus recetas y descontá stock automáticamente al completarlos.</p>
       </div>
       <button class="btn btn--primary" id="btn-new-order">
-        <span aria-hidden="true">➕</span> Planificar producción
+        ${icon('add')} Planificar producción
       </button>
     </header>
 
@@ -36,12 +38,13 @@ export function renderProductionPage(container, { orders, recipesById }) {
         ],
         rows: orders,
         emptyMessage: 'Todavía no planificaste ninguna producción.',
+        emptyAction: { id: 'btn-empty-new-production', label: 'Planificar producción' },
         rowActionsHtml: (row) => row.status === ORDER_STATUS.PLANNED
           ? `
             <div class="row gap-2">
-              <button class="btn btn--secondary" data-action="complete" data-id="${row.id}">✓ Completar</button>
-              <button class="btn btn--ghost btn--icon-only" data-action="cancel" data-id="${row.id}" aria-label="Cancelar">✕</button>
-              <button class="btn btn--ghost btn--icon-only" data-action="delete" data-id="${row.id}" aria-label="Eliminar">🗑️</button>
+              <button class="btn btn--secondary" data-action="complete" data-id="${row.id}">${icon('check')} Completar</button>
+              <button class="btn btn--ghost btn--icon-only" data-action="cancel" data-id="${row.id}" aria-label="Cancelar">${icon('close')}</button>
+              ${can('delete') ? `<button class="btn btn--ghost btn--icon-only" data-action="delete" data-id="${row.id}" aria-label="Eliminar">${icon('delete')}</button>` : ''}
             </div>`
           : '<span class="field__hint">Sin acciones disponibles</span>',
       })}
@@ -93,12 +96,12 @@ export function feasibilityHtml(feasibility) {
     <li class="row gap-2" style="justify-content:space-between; padding: var(--space-1) 0;">
       <span>${escapeHtml(r.name)}</span>
       <span class="badge badge--${r.enough ? 'success' : 'danger'}">
-        ${r.required.toFixed(2)} ${escapeHtml(r.unit)} ${r.enough ? '✓' : `(disponible: ${r.available.toFixed(2)})`}
+        ${r.required.toFixed(2)} ${escapeHtml(r.unit)} ${r.enough ? icon('check') : `(disponible: ${r.available.toFixed(2)})`}
       </span>
     </li>`).join('');
 
   return `
-    <strong>${feasibility.feasible ? '✓ Stock suficiente' : '⚠ Falta stock para completar esta producción'}</strong>
+    <strong>${feasibility.feasible ? `${icon('check')} Stock suficiente` : `${icon('warning')} Falta stock para completar esta producción`}</strong>
     <ul style="list-style:none; margin: var(--space-2) 0 0; padding:0;">${rows}</ul>
   `;
 }

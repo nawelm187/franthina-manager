@@ -4,22 +4,22 @@
  */
 
 import { ValidationError } from '../../core/errors.js';
-import { isPositiveNumber, isValidDateString } from '../../core/validators.js';
+import { isPositiveNumber, isValidDateString, mustBePositiveMessage, mustSelectMessage, FORM_HAS_ERRORS_MESSAGE } from '../../core/validators.js';
 
 export function validateProductionOrder(data) {
   const fieldErrors = {};
 
   if (!data.recipeId) {
-    fieldErrors.recipeId = 'Seleccioná una receta.';
+    fieldErrors.recipeId = mustSelectMessage('una receta');
   }
   if (!isPositiveNumber(data.multiplier)) {
-    fieldErrors.multiplier = 'La cantidad de lotes debe ser mayor a cero.';
+    fieldErrors.multiplier = mustBePositiveMessage('La cantidad de lotes');
   }
   if (!isValidDateString(data.plannedDate)) {
     fieldErrors.plannedDate = 'Indicá una fecha planificada.';
   }
 
   if (Object.keys(fieldErrors).length > 0) {
-    throw new ValidationError('Revisá los campos marcados en el formulario.', fieldErrors);
+    throw new ValidationError(FORM_HAS_ERRORS_MESSAGE, fieldErrors);
   }
 }

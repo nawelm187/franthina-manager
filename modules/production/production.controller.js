@@ -10,9 +10,12 @@ import { openModal } from '../../components/modal.js';
 import { confirmAction } from '../../components/confirm.js';
 import { showToast } from '../../components/toast.js';
 import { handleError, ValidationError, InsufficientStockError } from '../../core/errors.js';
+import { iconElement } from '../../core/icons.js';
+import { withButtonLoading } from '../../core/buttonLoading.js';
+import { skeletonTableHtml } from '../../components/skeletonTable.js';
 
 export async function render(_params, container) {
-  container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
+  container.innerHTML = skeletonTableHtml();
 
   let orders = [];
   let recipes = [];
@@ -32,11 +35,12 @@ export async function render(_params, container) {
 }
 
 function bindEvents(container, orders, recipes) {
-  container.querySelector('#btn-new-order')
-    ?.addEventListener('click', () => openOrderForm(container, recipes));
+  ['#btn-new-order', '#btn-empty-new-production'].forEach((sel) => {
+    container.querySelector(sel)?.addEventListener('click', () => openOrderForm(container, recipes));
+  });
 
   container.querySelectorAll('[data-action="complete"]').forEach((btn) => {
-    btn.addEventListener('click', () => handleComplete(container, orders, btn.dataset.id));
+    btn.addEventListener('click', () => handleComplete(container, orders, btn.dataset.id, btn));
   });
 
   container.querySelectorAll('[data-action="cancel"]').forEach((btn) => {
@@ -49,7 +53,7 @@ function bindEvents(container, orders, recipes) {
       });
       if (!confirmed) return;
       try {
-        await productionService.cancel(btn.dataset.id);
+        await withButtonLoading(btn, () => productionService.cancel(btn.dataset.id), { loadingLabel: 'Cancelando…' });
         showToast({ type: 'success', message: 'Orden cancelada.' });
         render(null, container);
       } catch (err) {
@@ -68,7 +72,7 @@ function bindEvents(container, orders, recipes) {
       });
       if (!confirmed) return;
       try {
-        await productionService.remove(btn.dataset.id);
+        await withButtonLoading(btn, () => productionService.remove(btn.dataset.id), { loadingLabel: 'Eliminando…' });
         showToast({ type: 'success', message: 'Orden eliminada.' });
         render(null, container);
       } catch (err) {
@@ -78,7 +82,7 @@ function bindEvents(container, orders, recipes) {
   });
 }
 
-async function handleComplete(container, orders, orderId) {
+async function handleComplete(container, orders, orderId, btn) {
   const order = orders.find((o) => o.id === orderId);
   const confirmed = await confirmAction({
     title: 'Completar producción',
@@ -88,7 +92,7 @@ async function handleComplete(container, orders, orderId) {
   if (!confirmed) return;
 
   try {
-    await productionService.complete(order.id);
+    await withButtonLoading(btn, () => productionService.complete(order.id), { loadingLabel: 'Completando…' });
     showToast({ type: 'success', message: 'Producción completada. Stock actualizado.' });
     render(null, container);
   } catch (err) {
@@ -187,7 +191,8 @@ function paintFieldErrors(fieldErrors) {
     const input = document.getElementById(`f-${field}`);
     if (el) {
       el.hidden = false;
-      el.textContent = `⚠ ${message}`;
+      el.textContent = '';
+      el.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(message));
       if (!el.id) el.id = `error-${field}`;
     }
     if (input) {

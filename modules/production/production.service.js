@@ -117,37 +117,56 @@ export const productionService = {
     const yieldTotal = recipe.yieldQuantity * Number(order.multiplier || 1);
     const linkedProducts = (await productService.list()).filter((p) => p.recipeId === order.recipeId);
 
-    // Todo en una sola operación atómica: si cualquier paso falla a mitad de
-    // camino (consumo de ingrediente o suma de stock del producto), se
-    // revierte todo lo ya aplicado (ver core/storage/atomicRun.js).
-    await runAtomic([
-      ...requirements.map((req) => ({
-        run: () => inventoryService.create({
-          ingredientId: req.ingredientId,
-          type: MOVEMENT_TYPES.OUT,
-          quantity: req.required,
-          reason: `Producción: ${recipe.name}`,
-        }),
-        rollback: () => inventoryService.create({
-          ingredientId: req.ingredientId,
-          type: MOVEMENT_TYPES.IN,
-          quantity: req.required,
-          reason: `Reversión automática: producción de "${recipe.name}" no se pudo completar`,
-        }),
-      })),
-      ...linkedProducts.map((product) => ({
-        run: () => productService.update(product.id, { ...product, stock: product.stock + yieldTotal }),
-        rollback: async () => {
-          const current = await productService.get(product.id);
-          await productService.update(product.id, { ...current, stock: current.stock - yieldTotal });
-        },
-      })),
-    ]);
+    let completedOrder;
+    if (storage.supportsAtomicOps()) {
+      // Postgres bloquea ingredientes y productos involucrados y hace todo
+      // en una sola transacción — si otra producción concurrente ya
+      // consumió el ingrediente entre checkFeasibility() y este paso, esto
+      // falla con InsufficientStockError en vez de dejar stock negativo.
+      completedOrder = await storage.completeProductionOrderAtomic({
+        orderId: id,
+        requirements,
+        reasonText: `Producción: ${recipe.name}`,
+        productIds: linkedProducts.map((p) => p.id),
+        yieldTotal,
+        completedAt: new Date().toISOString(),
+      });
+    } else {
+      // Modo local (sin Supabase): mismo camino de siempre, compensando en
+      // JavaScript paso a paso si algo falla a mitad de camino.
+      // Todo en una sola operación atómica: si cualquier paso falla a mitad de
+      // camino (consumo de ingrediente o suma de stock del producto), se
+      // revierte todo lo ya aplicado (ver core/storage/atomicRun.js).
+      await runAtomic([
+        ...requirements.map((req) => ({
+          run: () => inventoryService.create({
+            ingredientId: req.ingredientId,
+            type: MOVEMENT_TYPES.OUT,
+            quantity: req.required,
+            reason: `Producción: ${recipe.name}`,
+          }),
+          rollback: () => inventoryService.create({
+            ingredientId: req.ingredientId,
+            type: MOVEMENT_TYPES.IN,
+            quantity: req.required,
+            reason: `Reversión automática: producción de "${recipe.name}" no se pudo completar`,
+          }),
+        })),
+        ...linkedProducts.map((product) => ({
+          run: () => productService.update(product.id, { ...product, stock: product.stock + yieldTotal }),
+          rollback: async () => {
+            const current = await productService.get(product.id);
+            await productService.update(product.id, { ...current, stock: current.stock - yieldTotal });
+          },
+        })),
+      ]);
 
-    const completedOrder = await storage.update(PRODUCTION_COLLECTION, id, {
-      status: ORDER_STATUS.COMPLETED,
-      completedAt: new Date().toISOString(),
-    });
+      completedOrder = await storage.update(PRODUCTION_COLLECTION, id, {
+        status: ORDER_STATUS.COMPLETED,
+        completedAt: new Date().toISOString(),
+      });
+    }
+
     eventBus.emit(EVENTS.PRODUCTION_ORDER_COMPLETED, completedOrder);
     return completedOrder;
   },
