@@ -14,6 +14,7 @@
  */
 
 import { escapeHtml } from '../core/utils.js';
+import { icon } from '../core/icons.js';
 
 /**
  * @typedef {Object} ColumnDef
@@ -24,15 +25,23 @@ import { escapeHtml } from '../core/utils.js';
  */
 
 /**
- * @param {{ columns: ColumnDef[], rows: object[], emptyMessage?: string, rowActionsHtml?: (row: object) => string, sortKey?: string|null, sortDirection?: 'asc'|'desc' }} options
+ * @param {{ columns: ColumnDef[], rows: object[], emptyMessage?: string, emptyAction?: {id: string, label: string}|null, rowActionsHtml?: (row: object) => string, sortKey?: string|null, sortDirection?: 'asc'|'desc' }} options
  * @returns {string} HTML de la tabla
  */
-export function renderDataTable({ columns, rows, emptyMessage = 'No hay datos para mostrar todavía.', rowActionsHtml, sortKey = null, sortDirection = 'asc' }) {
+export function renderDataTable({ columns, rows, emptyMessage = 'No hay datos para mostrar todavía.', emptyAction = null, rowActionsHtml, sortKey = null, sortDirection = 'asc' }) {
   if (!rows.length) {
+    // emptyAction solo tiene sentido cuando la tabla está vacía "de verdad"
+    // (no hay ningún registro todavía) — el controller decide eso, acá solo
+    // se dibuja si se lo pasan. Si el vacío es por una búsqueda sin
+    // resultados, el controller simplemente no manda emptyAction.
+    const cta = emptyAction
+      ? `<button type="button" class="btn btn--primary" id="${escapeHtml(emptyAction.id)}">${icon('add')} ${escapeHtml(emptyAction.label)}</button>`
+      : '';
     return `
       <div class="state-panel">
-        <span class="state-panel__icon" aria-hidden="true">📭</span>
+        <span class="state-panel__icon">${icon('inbox')}</span>
         <p>${escapeHtml(emptyMessage)}</p>
+        ${cta}
       </div>`;
   }
 

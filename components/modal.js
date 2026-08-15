@@ -3,6 +3,7 @@
  * Responsabilidad: diálogo modal accesible y reutilizable.
  * Atrapa el foco, se cierra con Escape, y devuelve el foco al elemento que lo abrió.
  */
+import { icon } from '../core/icons.js';
 
 /**
  * @param {{ title: string, contentHtml: string, onMount?: (modalEl: HTMLElement) => void, footerButtons?: {label:string, variant?:string, onClick:(close:()=>void)=>void}[] }} options
@@ -27,7 +28,7 @@ export function openModal({ title, contentHtml, onMount, footerButtons = [] }) {
   modal.innerHTML = `
     <div class="modal__header">
       <h3 id="modal-title">${title}</h3>
-      <button type="button" class="btn btn--ghost btn--icon-only" data-close aria-label="Cerrar">✕</button>
+      <button type="button" class="btn btn--ghost btn--icon-only" data-close aria-label="Cerrar">${icon('close')}</button>
     </div>
     <div class="modal__body">${contentHtml}</div>
     ${footerButtons.length ? `<div class="modal__footer">${footerHtml}</div>` : ''}
@@ -91,7 +92,7 @@ export function openModal({ title, contentHtml, onMount, footerButtons = [] }) {
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
   modal.querySelector('[data-close]').addEventListener('click', close);
   footerButtons.forEach((btn, i) => {
-    modal.querySelector(`[data-btn-index="${i}"]`).addEventListener('click', async () => {
+    modal.querySelector(`[data-btn-index="${i}"]`).addEventListener('click', async (event) => {
       // Evita doble-envío: un doble-tap (muy común en pantallas táctiles) o un
       // Enter repetido no debe poder disparar el guardado dos veces antes de
       // que la primera llamada termine (podría crear un registro duplicado,
@@ -99,7 +100,13 @@ export function openModal({ title, contentHtml, onMount, footerButtons = [] }) {
       if (modal.dataset.submitting === 'true') return;
       modal.dataset.submitting = 'true';
       const allButtons = footerButtons.map((_, j) => modal.querySelector(`[data-btn-index="${j}"]`));
+      const clickedBtn = event.currentTarget;
+      const originalLabel = clickedBtn.innerHTML;
       allButtons.forEach((el) => { el.disabled = true; });
+      // Solo el botón que se tocó muestra el spinner — así queda claro cuál
+      // acción está en curso, en vez de que toda la fila de botones se vea
+      // apagada sin explicación (el antipatrón de "clic → pantalla congelada").
+      clickedBtn.innerHTML = `${icon('progress_activity', { className: 'icon-spin' })} ${btn.loadingLabel || 'Guardando…'}`;
       try {
         await btn.onClick(close);
       } finally {
@@ -108,6 +115,7 @@ export function openModal({ title, contentHtml, onMount, footerButtons = [] }) {
         if (document.body.contains(backdrop)) {
           modal.dataset.submitting = 'false';
           allButtons.forEach((el) => { el.disabled = false; });
+          clickedBtn.innerHTML = originalLabel;
         }
       }
     });
