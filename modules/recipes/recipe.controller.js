@@ -10,6 +10,7 @@ import { renderRecipesPage, renderRecipesTable, recipeFormHtml, buildItemRowHtml
 import { createEmptyRecipe } from './recipe.model.js';
 import { openModal } from '../../components/modal.js';
 import { confirmAction } from '../../components/confirm.js';
+import { withButtonLoading } from '../../core/buttonLoading.js';
 import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError } from '../../core/errors.js';
@@ -17,12 +18,14 @@ import { logAction } from '../../core/auditLog.js';
 import { debounce, formatCurrency, focusNewRow, normalizeForSearch } from '../../core/utils.js';
 import { productService } from '../products/product.service.js';
 import { compatibleUnitsFor, areCompatibleUnits } from '../../core/units.js';
+import { iconElement } from '../../core/icons.js';
+import { skeletonTableHtml } from '../../components/skeletonTable.js';
 
 let sortState = { key: null, direction: 'asc' };
 let searchTerm = '';
 
 export async function render(_params, container) {
-  container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
+  container.innerHTML = skeletonTableHtml();
 
   let allRecipes = [];
   let ingredients = [];
@@ -85,8 +88,9 @@ export function findProductsUsingRecipe(products, recipeId) {
 }
 
 function bindEvents(container, recipes, ingredients, allRecipes, costsById) {
-  container.querySelector('#btn-new-recipe')
-    ?.addEventListener('click', () => openRecipeForm(container, null, ingredients));
+  ['#btn-new-recipe', '#btn-empty-new-recipe'].forEach((sel) => {
+    container.querySelector(sel)?.addEventListener('click', () => openRecipeForm(container, null, ingredients));
+  });
 
   container.querySelector('#recipe-search')
     ?.addEventListener('input', debounce((e) => {
@@ -130,7 +134,7 @@ function bindRowActions(container, recipes, ingredients, allRecipes, costsById) 
       });
       if (!confirmed) return;
       try {
-        await recipeService.remove(recipe.id);
+        await withButtonLoading(btn, () => recipeService.remove(recipe.id), { loadingLabel: 'Eliminando…' });
         logAction({ action: 'Eliminó', entity: 'receta', entityId: recipe.id, details: recipe.name });
         showToast({ type: 'success', message: `"${recipe.name}" fue eliminada.` });
         render(null, container);
@@ -290,7 +294,8 @@ function paintFieldErrors(fieldErrors) {
     const input = document.getElementById(`f-${field}`);
     if (el) {
       el.hidden = false;
-      el.textContent = `⚠ ${message}`;
+      el.textContent = '';
+      el.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(message));
       if (!el.id) el.id = `error-${field}`;
     }
     if (input) {

@@ -7,6 +7,8 @@
 import { renderDataTable } from '../../components/dataTable.js';
 import { formatCurrency, escapeHtml, emptyStateMessage } from '../../core/utils.js';
 import { compatibleUnitsFor } from '../../core/units.js';
+import { icon } from '../../core/icons.js';
+import { can } from '../../core/permissions.js';
 
 /** Renderiza solo la tabla — se reusa al buscar, para refrescar nada más
  *  que esta región y no pisar (ni hacerle perder el foco a) el buscador. */
@@ -24,10 +26,11 @@ export function renderRecipesTable({ recipes: rows, costsById, sortState, search
     ],
     rows,
     emptyMessage: emptyStateMessage(searchTerm, 'Todavía no cargaste ninguna receta.'),
+    emptyAction: searchTerm ? null : { id: 'btn-empty-new-recipe', label: 'Nueva receta' },
     rowActionsHtml: (row) => `
       <div class="row gap-2">
-        <button class="btn btn--ghost btn--icon-only" data-action="edit" data-id="${row.id}" aria-label="Editar ${escapeHtml(row.name)}">✏️</button>
-        <button class="btn btn--ghost btn--icon-only" data-action="delete" data-id="${row.id}" aria-label="Eliminar ${escapeHtml(row.name)}">🗑️</button>
+        <button class="btn btn--ghost btn--icon-only" data-action="edit" data-id="${row.id}" aria-label="Editar ${escapeHtml(row.name)}">${icon('edit')}</button>
+        ${can('delete') ? `<button class="btn btn--ghost btn--icon-only" data-action="delete" data-id="${row.id}" aria-label="Eliminar ${escapeHtml(row.name)}">${icon('delete')}</button>` : ''}
       </div>`,
   });
 }
@@ -40,7 +43,7 @@ export function renderRecipesPage(container, { recipes, costsById, sortState, se
         <p>Costo calculado automáticamente a partir del precio actual de cada ingrediente.</p>
       </div>
       <button class="btn btn--primary" id="btn-new-recipe">
-        <span aria-hidden="true">➕</span> Nueva receta
+        ${icon('add')} Nueva receta
       </button>
     </header>
 
@@ -92,7 +95,7 @@ export function recipeFormHtml(recipe, ingredients) {
         <div id="recipe-items-list" class="stack gap-2">${rows.join('')}</div>
         <div class="field__error" data-error-for="items" hidden style="margin-top: var(--space-2);"></div>
         <button type="button" class="btn btn--secondary" id="btn-add-item" style="margin-top: var(--space-2);">
-          ➕ Agregar ingrediente
+          ${icon('add')} Agregar ingrediente
         </button>
       </fieldset>
 
@@ -127,7 +130,7 @@ function recipeItemRowHtml(item, ingredients) {
       </select>
       <input class="input" type="number" min="0" step="0.01" data-field="quantity" value="${item.quantity || ''}" placeholder="Cantidad" style="flex:1;" />
       <select class="select" data-field="unit" style="flex:1;">${unitOptionsHtml}</select>
-      <button type="button" class="btn btn--ghost btn--icon-only" data-remove-item aria-label="Quitar ingrediente">🗑️</button>
+      <button type="button" class="btn btn--ghost btn--icon-only" data-remove-item aria-label="Quitar ingrediente">${icon('delete')}</button>
     </div>`;
 }
 

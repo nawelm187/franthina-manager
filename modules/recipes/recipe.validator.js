@@ -4,14 +4,14 @@
  */
 
 import { ValidationError } from '../../core/errors.js';
-import { isNonEmptyString, isPositiveNumber } from '../../core/validators.js';
+import { isNonEmptyString, isPositiveNumber, requiredTextMessage, mustBePositiveMessage, FORM_HAS_ERRORS_MESSAGE } from '../../core/validators.js';
 
 /** @param {import('./recipe.model.js').Recipe} data */
 export function validateRecipe(data) {
   const fieldErrors = {};
 
   if (!isNonEmptyString(data.name, 2)) {
-    fieldErrors.name = 'El nombre debe tener entre 2 y 200 caracteres.';
+    fieldErrors.name = requiredTextMessage('El nombre');
   }
   if (!Array.isArray(data.items) || data.items.length === 0) {
     fieldErrors.items = 'Agregá al menos un ingrediente a la receta.';
@@ -24,10 +24,10 @@ export function validateRecipe(data) {
     }
   }
   if (!isPositiveNumber(data.yieldQuantity)) {
-    fieldErrors.yieldQuantity = 'El rendimiento debe ser mayor a cero.';
+    fieldErrors.yieldQuantity = mustBePositiveMessage('El rendimiento');
   }
 
   if (Object.keys(fieldErrors).length > 0) {
-    throw new ValidationError('Revisá los campos marcados en el formulario.', fieldErrors);
+    throw new ValidationError(FORM_HAS_ERRORS_MESSAGE, fieldErrors);
   }
 }
