@@ -10,12 +10,13 @@ import { storeCart } from '../../core/storeCart.js';
 import { showToast } from '../../components/toast.js';
 import { handleError } from '../../core/errors.js';
 import { bindQtyStepper } from '../../components/qtyStepper.js';
+import { skeletonTableHtml } from '../../components/skeletonTable.js';
 
 let activeCategory = 'Todas';
 let categoriesExpanded = false;
 
 export async function render(_params, container) {
-  container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
+  container.innerHTML = skeletonTableHtml();
 
   let activeProducts = [];
   try {

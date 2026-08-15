@@ -9,6 +9,7 @@
  */
 import { escapeHtml, formatCurrency, truncate, normalizeImageUrl } from '../../core/utils.js';
 import { APP_CONFIG } from '../../core/config.js';
+import { icon } from '../../core/icons.js';
 
 function qtyStepperHtml(inputId, name, { min = 1, value = 1 } = {}) {
   return `
@@ -24,7 +25,7 @@ function productCardHtml(product) {
   return `
     <article class="product-card">
       <div class="product-card__media">
-        <span class="product-card__media-icon" aria-hidden="true">🧁</span>
+        <span class="product-card__media-icon">${icon('bakery_dining')}</span>
         ${product.imageUrl ? `<img src="${escapeHtml(normalizeImageUrl(product.imageUrl))}" alt="" loading="lazy" onerror="this.remove()" />` : ''}
         <span class="product-card__category">${escapeHtml(product.category)}</span>
       </div>
@@ -40,7 +41,7 @@ function productCardHtml(product) {
         ${available ? `
           <div class="row gap-2 product-card__actions">
             ${qtyStepperHtml(`qty-${product.id}`, product.name)}
-            <button class="btn btn--primary" data-action="add-to-cart" data-id="${product.id}">🛒 Agregar</button>
+            <button class="btn btn--primary" data-action="add-to-cart" data-id="${product.id}">${icon('shopping_cart')} Agregar</button>
           </div>` : ''}
       </div>
     </article>`;
@@ -71,7 +72,7 @@ export function renderCatalogPage(container, { products, categories, activeCateg
 
       ${products.length === 0
         ? `<div class="state-panel">
-            <span class="state-panel__icon" aria-hidden="true">🧁</span>
+            <span class="state-panel__icon">${icon('bakery_dining')}</span>
             <h2>Todavía no hay productos disponibles</h2>
             <p>Volvé a visitarnos pronto.</p>
           </div>`
