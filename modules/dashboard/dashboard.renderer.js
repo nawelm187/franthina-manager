@@ -4,12 +4,13 @@
  */
 
 import { escapeHtml, formatCurrency } from '../../core/utils.js';
+import { icon } from '../../core/icons.js';
 
-function statCard(icon, label, value, variant = '') {
+function statCard(iconName, label, value, variant = '') {
   return `
     <div class="card">
       <div class="row gap-3" style="align-items:flex-start;">
-        <span style="font-size: var(--fs-2xl);" aria-hidden="true">${icon}</span>
+        <span style="font-size: var(--fs-2xl);">${icon(iconName)}</span>
         <div>
           <p style="margin:0; font-size: var(--fs-sm);">${escapeHtml(label)}</p>
           <p style="margin:0; font-family: var(--font-display); font-size: var(--fs-2xl); font-weight:700; color: var(--text-primary);" class="${variant}">${value}</p>
@@ -23,7 +24,7 @@ export function renderDashboard(container, summary) {
     <li class="row gap-2" style="justify-content:space-between; padding: var(--space-2) 0; border-bottom: 1px solid var(--surface-border);">
       <span>${escapeHtml(i.name)}</span>
       <span class="badge badge--danger">${i.stock} ${escapeHtml(i.unit)} (mín. ${i.minStock})</span>
-    </li>`).join('') || '<li class="state-panel"><p>Ningún ingrediente con stock bajo. 🎉</p></li>';
+    </li>`).join('') || `<li class="state-panel"><p>Ningún ingrediente con stock bajo. ${icon('celebration')}</p></li>`;
 
   container.innerHTML = `
     <header style="margin-bottom: var(--space-5);">
@@ -32,16 +33,16 @@ export function renderDashboard(container, summary) {
     </header>
 
     <div class="grid-cards" style="margin-bottom: var(--space-6);">
-      ${statCard('💰', 'Ventas de hoy', formatCurrency(summary.todaySalesTotal))}
-      ${statCard('🔓', 'Caja', summary.cashboxOpen ? 'Abierta' : 'Cerrada', summary.cashboxOpen ? 'badge badge--success' : 'badge badge--warning')}
-      ${statCard('🧁', 'Productos activos', `${summary.activeProducts} / ${summary.totalProducts}`)}
-      ${statCard('🌾', 'Ingredientes registrados', summary.totalIngredients)}
-      ${statCard('📖', 'Recetas cargadas', summary.totalRecipes)}
-      ${statCard('🏭', 'Producción pendiente', summary.pendingProduction)}
-      ${statCard('📝', 'Pedidos pendientes', summary.pendingOrders)}
-      ${statCard('👥', 'Clientes', summary.totalCustomers)}
-      ${statCard('📈', 'Margen promedio', `${summary.avgMargin}%`)}
-      ${statCard('⚠️', 'Alertas de stock bajo', summary.lowStockIngredients.length, summary.lowStockIngredients.length > 0 ? 'badge badge--danger' : '')}
+      ${statCard('payments', 'Ventas de hoy', formatCurrency(summary.todaySalesTotal))}
+      ${statCard('lock_open', 'Caja', summary.cashboxOpen ? 'Abierta' : 'Cerrada', summary.cashboxOpen ? 'badge badge--success' : 'badge badge--warning')}
+      ${statCard('bakery_dining', 'Productos activos', `${summary.activeProducts} / ${summary.totalProducts}`)}
+      ${statCard('grass', 'Ingredientes registrados', summary.totalIngredients)}
+      ${statCard('menu_book', 'Recetas cargadas', summary.totalRecipes)}
+      ${statCard('factory', 'Producción pendiente', summary.pendingProduction)}
+      ${statCard('edit_note', 'Pedidos pendientes', summary.pendingOrders)}
+      ${statCard('group', 'Clientes', summary.totalCustomers)}
+      ${statCard('trending_up', 'Margen promedio', `${summary.avgMargin}%`)}
+      ${statCard('warning', 'Alertas de stock bajo', summary.lowStockIngredients.length, summary.lowStockIngredients.length > 0 ? 'badge badge--danger' : '')}
     </div>
 
     <div class="card">
