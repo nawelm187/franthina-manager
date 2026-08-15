@@ -32,9 +32,8 @@ después se programa.
   — nunca costo ni stock exacto) con carrito y checkout, y todo el sistema
   de gestión existente se movió intacto detrás de `/admin`. El checkout crea
   un Pedido real (mismo `orderService` que usa el admin), así que un pedido
-  de la tienda aparece automáticamente en `/admin/pedidos`. Sin login
-  todavía — `/admin` es una URL más, no un área protegida de verdad; eso es
-  la v0.24 del roadmap original (ver más abajo). Esto reemplazó al plan
+  de la tienda aparece automáticamente en `/admin/pedidos`. En ese momento
+  todavía sin login (llegó en v0.25, ver más abajo). Esto reemplazó al plan
   original de "v0.19 — Simulador de costos y precios" (ver más abajo), que
   se corrió a una versión futura por decisión de producto.
 - ✅ **v0.22 — WhatsApp** (`core/whatsapp.js`, links `wa.me` — sin API ni
@@ -44,6 +43,41 @@ después se programa.
   fila tiene un botón para escribirle al cliente con el resumen y estado de
   su pedido. El número de WhatsApp del negocio se configura una vez en
   Configuración (`core/state.js`, `business.whatsappNumber`).
+- ✅ **v0.23 — Auditoría UX**: se midió el flujo real de las acciones más
+  frecuentes (Ventas, Pedidos, Compras, Producción) contra el ideal
+  "elegir + confirmar, sin pasos de más". Se corrigió un bug de precio que
+  no se actualizaba al cambiar de producto/ingrediente elegido, y se agregó
+  un alta rápida de cliente sin salir del formulario de Pedidos.
+- ✅ **v0.25 — Base de datos en la nube + login real** (Supabase): los datos
+  pasaron de localStorage a una base real, con `/admin` protegido por sesión
+  (`core/auth.js`, `core/router.js` — guard de rutas). `CloudStorageAdapter`
+  implementa la misma interfaz que `LocalStorageAdapter`, así que ningún
+  Service tuvo que cambiar. Seguridad a nivel de fila (RLS): todo requiere
+  sesión, salvo crear un pedido/cliente desde la tienda (checkout de
+  invitado) y leer el catálogo público — nunca costo, notas, ni stock exacto.
+- ✅ **v0.26 — Migración**: herramienta en Configuración para subir a la nube
+  los datos que hayan quedado en el celular de antes de conectar Supabase.
+- ✅ **v0.27 — Usuarios, primer paso**: tabla `profiles` (un perfil por
+  usuario, con un rol) y una tarjeta en Configuración que lista quién tiene
+  acceso. A propósito **sin** aplicar restricciones por rol todavía — eso
+  sigue siendo trabajo pendiente (ver "Prioridad inmediata" más abajo).
+- ✅ **v0.29 — Auditoría**: registro de acciones importantes (eliminar,
+  cambiar precio, cancelar pedido) en `system_logs`, visible en
+  Reportes → Auditoría. De solo agregar: ni un admin puede editar o borrar
+  un registro una vez creado.
+- ✅ **v0.29.1 — Correcciones de seguridad**, tras una revisión: los
+  usuarios nuevos ya no son administradores por defecto (quedan "pending"
+  hasta que un admin les asigne un rol a mano), nadie puede otorgarse un rol
+  a sí mismo, y la configuración pública del negocio (hoy: WhatsApp) se
+  separó de la configuración administrativa completa, con el mismo patrón
+  de función pública que ya usaba el catálogo.
+- ✅ **v0.30 — Roles y permisos, primer paso**: UI para asignar rol desde
+  Configuración (antes solo se podía a mano en SQL), y un modelo de
+  permisos por rol (`core/permissions.js`) que sí tiene efecto — oculta
+  Reportes/Configuración y "Eliminar" según corresponda, con el Router
+  bloqueando esas rutas del lado del cliente aunque se pidan a mano. Sigue
+  siendo una capa de experiencia, no la barrera real — ver "Roles con
+  restricciones reales" en "Próximo enfoque recomendado" para lo que falta.
 
 ## El núcleo comercial completo ya está cubierto
 
@@ -123,13 +157,47 @@ Ningún módulo de este ciclo conoce los detalles internos de otro.
 
 ## Próximo enfoque recomendado
 
-Con el núcleo comercial y sus guardas de integridad ya cubiertos, lo que
-más valor agrega ahora es: mejorar experiencia de uso real (probar los
-formularios y flujos a mano, no solo la lógica), sumar funcionalidades que
-resuelvan problemas concretos del día a día de la pastelería, y ampliar la
-cobertura de tests a medida que aparezcan esas funcionalidades — no seguir
-construyendo infraestructura transversal sin un caso de uso concreto
-delante.
+Antes de sumar más funcionalidades, hay una lista corta y concreta de
+seguridad/robustez que quedó pendiente de una revisión (parte ya corregida
+en v0.29.1, ver "Ya construido"):
+
+- ✅ **Concurrencia real**: resuelto para Ventas en **v0.31.0** y para
+  Producción en **v0.31.1** — ver `franthina_schema_v031_sale_concurrency.sql`
+  y `franthina_schema_v031_1_production_concurrency.sql`. El resto de las
+  operaciones (Compras sumando stock, apertura/cierre de Caja) siguen sin
+  este tratamiento; se resuelven si aparece evidencia real de que hacen
+  falta — con un solo negocio y pocas personas operando a la vez, el
+  riesgo práctico hoy es bajo.
+- 🟡 **Precio y stock del checkout, calculados en el servidor**: resuelto
+  a medias en **v0.31.2**. `create_public_order()` ya recalcula el precio
+  real del lado del servidor — el checkout público ya no confía en lo que
+  mandó el navegador. Falta el último paso: restringir la política de
+  INSERT directo en `orders` para que `anon` no pueda insertar una fila a
+  mano sin pasar por esa función (alguien hablándole a la API REST de
+  Supabase directamente, no a través de la app). No se hizo a ciegas en la
+  misma pasada — se cierra en cuanto esté confirmado que el checkout
+  público funciona bien en producción con el cambio nuevo.
+- ✅ **Roles con restricciones reales**: resuelto en **v0.30** (UI +
+  permisos de cliente) y **v0.30.1** (la barrera real: políticas RLS
+  restrictivas de `delete` en las 11 tablas de negocio, sin tocar ninguna
+  política existente — ver `franthina_schema_v030_1_delete_permissions.sql`).
+- 🟡 **Tests de seguridad (RLS) y end-to-end**: los tests actuales (ver
+  `tests/`) cubren muy bien la lógica de negocio pura, pero no verifican
+  automáticamente que un visitante sin sesión no pueda leer lo que no debe,
+  o que el flujo completo tienda→pedido funcione de punta a punta en un
+  navegador real. Como paso intermedio (v0.31.3), `docs/SECURITY_CHECKLIST.md`
+  junta todas las verificaciones manuales de RLS de esta ronda de trabajo
+  (v0.29.2 a v0.31.2) en un solo lugar para correrlas a mano contra un
+  Supabase real. No reemplaza tests automatizados — es la versión
+  pragmática mientras no haya un caso de uso concreto que justifique
+  levantar infraestructura de test contra RLS/e2e con navegador real,
+  que es justamente lo que dice el punto de abajo que no conviene hacer
+  todavía.
+
+Fuera de esa lista, lo que más valor agrega es lo de siempre: probar los
+flujos a mano, sumar funcionalidades que resuelvan problemas concretos del
+día a día, y ampliar tests a medida que aparecen — no construir
+infraestructura transversal sin un caso de uso concreto delante.
 
 ## Hoja de ruta sugerida (v0.16 en adelante)
 
