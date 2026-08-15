@@ -8,6 +8,7 @@
 import { auth } from '../../core/auth.js';
 import { escapeHtml } from '../../core/utils.js';
 import { APP_CONFIG } from '../../core/config.js';
+import { icon, iconElement } from '../../core/icons.js';
 
 export function renderLogin(container) {
   container.innerHTML = `
@@ -24,7 +25,7 @@ export function renderLogin(container) {
           <label class="field__label" for="login-password">Contraseña</label>
           <div class="row gap-2" style="flex-wrap:nowrap;">
             <input class="input" type="password" id="login-password" name="password" autocomplete="current-password" required style="flex:1;" />
-            <button type="button" class="btn btn--ghost btn--icon-only" id="btn-toggle-password" aria-label="Mostrar contraseña" aria-pressed="false">👁️</button>
+            <button type="button" class="btn btn--ghost btn--icon-only" id="btn-toggle-password" aria-label="Mostrar contraseña" aria-pressed="false">${icon('visibility')}</button>
           </div>
         </div>
         <div class="field__error" id="login-error" hidden></div>
@@ -43,7 +44,8 @@ export function renderLogin(container) {
     const isPassword = passwordInput.type === 'password';
     passwordInput.type = isPassword ? 'text' : 'password';
     toggleBtn.setAttribute('aria-pressed', String(isPassword));
-    toggleBtn.textContent = isPassword ? '🙈' : '👁️';
+    toggleBtn.textContent = '';
+    toggleBtn.append(iconElement(isPassword ? 'visibility_off' : 'visibility'));
     toggleBtn.setAttribute('aria-label', isPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
   });
 
@@ -57,7 +59,8 @@ export function renderLogin(container) {
       // sesión, y app.js vuelve a resolver la ruta pedida originalmente.
     } catch (err) {
       errorEl.hidden = false;
-      errorEl.textContent = `⚠ ${friendlyAuthError(err)}`;
+      errorEl.textContent = '';
+      errorEl.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(friendlyAuthError(err)));
       submitBtn.disabled = false;
     }
   });
