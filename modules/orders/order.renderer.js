@@ -8,6 +8,7 @@ import { formatCurrency, formatDate, escapeHtml } from '../../core/utils.js';
 import { ORDER_STATUS, ORDER_STATUS_LABELS, calculateOrderTotal, calculateOrderBalance } from './order.model.js';
 import { buildWhatsAppLink } from '../../core/whatsapp.js';
 import { APP_CONFIG } from '../../core/config.js';
+import { icon } from '../../core/icons.js';
 
 const STATUS_BADGE_VARIANT = {
   [ORDER_STATUS.PENDING]: 'warning',
@@ -40,7 +41,7 @@ export function renderOrdersPage(container, { orders, customersById, productsByI
         <p>Pedidos con entrega futura, seña y saldo pendiente.</p>
       </div>
       <button class="btn btn--primary" id="btn-new-order">
-        <span aria-hidden="true">📝</span> Nuevo pedido
+        ${icon('edit_note')} Nuevo pedido
       </button>
     </header>
 
@@ -62,20 +63,21 @@ export function renderOrdersPage(container, { orders, customersById, productsByI
         ],
         rows: orders,
         emptyMessage: 'Todavía no cargaste ningún pedido.',
+        emptyAction: { id: 'btn-empty-new-order', label: 'Nuevo pedido' },
         rowActionsHtml: (row) => {
           const customer = customersById.get(row.customerId);
           const whatsappLink = customer?.phone
             ? buildWhatsAppLink(customer.phone, buildOrderStatusMessage(row, customer, productsById))
             : null;
           const whatsappBtn = whatsappLink
-            ? `<a class="btn btn--ghost btn--icon-only" href="${whatsappLink}" target="_blank" rel="noopener" aria-label="Enviar WhatsApp a ${escapeHtml(customer.name)}">💬</a>`
+            ? `<a class="btn btn--ghost btn--icon-only" href="${whatsappLink}" target="_blank" rel="noopener" aria-label="Enviar WhatsApp a ${escapeHtml(customer.name)}">${icon('chat')}</a>`
             : '';
           const statusActions = row.status === ORDER_STATUS.PENDING
-            ? `<button class="btn btn--secondary" data-action="deliver" data-id="${row.id}">✓ Entregar</button>
-               <button class="btn btn--ghost btn--icon-only" data-action="cancel" data-id="${row.id}" aria-label="Cancelar">✕</button>`
+            ? `<button class="btn btn--secondary" data-action="deliver" data-id="${row.id}">${icon('check')} Entregar</button>
+               <button class="btn btn--ghost btn--icon-only" data-action="cancel" data-id="${row.id}" aria-label="Cancelar">${icon('close')}</button>`
             : '';
-          if (!whatsappBtn && !statusActions) return '<span class="field__hint">Sin acciones disponibles</span>';
-          return `<div class="row gap-2">${whatsappBtn}${statusActions}</div>`;
+          const pdfBtn = `<button class="btn btn--ghost btn--icon-only" data-action="pdf" data-id="${row.id}" aria-label="Descargar comprobante de ${escapeHtml(customer?.name ?? 'este pedido')}">${icon('picture_as_pdf')}</button>`;
+          return `<div class="row gap-2">${whatsappBtn}${pdfBtn}${statusActions}</div>`;
         },
       })}
     </div>
@@ -91,7 +93,7 @@ export function orderFormHtml(order, products, customers) {
       <div class="field">
         <div class="row" style="justify-content:space-between; align-items:center; flex-wrap:wrap; gap: var(--space-2);">
           <label class="field__label" for="o-customer" style="margin-bottom:0;">Cliente <span class="required">*</span></label>
-          <button type="button" class="btn btn--ghost" id="btn-quick-customer">➕ Nuevo cliente</button>
+          <button type="button" class="btn btn--ghost" id="btn-quick-customer">${icon('add')} Nuevo cliente</button>
         </div>
         <select class="select" id="o-customer" name="customerId">
           <option value="">Seleccioná un cliente…</option>
@@ -105,7 +107,7 @@ export function orderFormHtml(order, products, customers) {
         <div id="order-items-list" class="stack gap-2">${rows.join('')}</div>
         <div class="field__error" data-error-for="items" hidden style="margin-top: var(--space-2);"></div>
         <button type="button" class="btn btn--secondary" id="btn-add-order-item" style="margin-top: var(--space-2);">
-          ➕ Agregar producto
+          ${icon('add')} Agregar producto
         </button>
       </fieldset>
 
@@ -151,7 +153,7 @@ function orderItemRowHtml(item, products) {
       </select>
       <input class="input" type="number" min="1" step="1" data-field="quantity" value="${item.quantity || 1}" placeholder="Cant." style="flex:1;" />
       <input class="input" type="number" min="0" step="0.01" data-field="unitPrice" value="${item.unitPrice || ''}" placeholder="Precio" style="flex:1;" />
-      <button type="button" class="btn btn--ghost btn--icon-only" data-remove-item aria-label="Quitar producto">🗑️</button>
+      <button type="button" class="btn btn--ghost btn--icon-only" data-remove-item aria-label="Quitar producto">${icon('delete')}</button>
     </div>`;
 }
 

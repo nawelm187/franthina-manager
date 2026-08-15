@@ -9,16 +9,19 @@ import { createEmptyOrder, calculateOrderTotal, calculateOrderBalance } from './
 import { customerService } from '../customers/customer.service.js';
 import { openModal } from '../../components/modal.js';
 import { confirmAction } from '../../components/confirm.js';
+import { withButtonLoading } from '../../core/buttonLoading.js';
 import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError, InsufficientStockError } from '../../core/errors.js';
 import { logAction } from '../../core/auditLog.js';
 import { formatCurrency, focusNewRow, debounce, normalizeForSearch } from '../../core/utils.js';
+import { iconElement } from '../../core/icons.js';
+import { skeletonTableHtml } from '../../components/skeletonTable.js';
 
 let sortState = { key: 'deliveryDate', direction: 'asc' };
 
 export async function render(_params, container) {
-  container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
+  container.innerHTML = skeletonTableHtml();
 
   let allOrders = [];
   let products = [];
@@ -53,8 +56,26 @@ function paint(container, displayedOrders, products, customers, allOrders) {
 }
 
 function bindEvents(container, orders, products, customers, allOrders, customersById) {
-  container.querySelector('#btn-new-order')
-    ?.addEventListener('click', () => openOrderForm(container, products, customers));
+  const productsById = new Map(products.map((p) => [p.id, p]));
+
+  container.querySelectorAll('[data-action="pdf"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const order = orders.find((o) => o.id === btn.dataset.id);
+      if (!order) return;
+      try {
+        await withButtonLoading(btn, async () => {
+          const { downloadOrderReceiptPdf } = await import('./order.pdf.js');
+          await downloadOrderReceiptPdf(order, customersById.get(order.customerId) ?? null, productsById);
+        }, { loadingLabel: '' });
+      } catch (err) {
+        handleError(err, 'orders:pdf');
+      }
+    });
+  });
+
+  ['#btn-new-order', '#btn-empty-new-order'].forEach((sel) => {
+    container.querySelector(sel)?.addEventListener('click', () => openOrderForm(container, products, customers));
+  });
 
   container.querySelector('#order-search')
     ?.addEventListener('input', debounce((e) => {
@@ -67,7 +88,7 @@ function bindEvents(container, orders, products, customers, allOrders, customers
     }, 250));
 
   container.querySelectorAll('[data-action="deliver"]').forEach((btn) => {
-    btn.addEventListener('click', () => handleDeliver(container, orders, btn.dataset.id));
+    btn.addEventListener('click', () => handleDeliver(container, orders, btn.dataset.id, btn));
   });
 
   container.querySelectorAll('[data-action="cancel"]').forEach((btn) => {
@@ -80,7 +101,7 @@ function bindEvents(container, orders, products, customers, allOrders, customers
       });
       if (!confirmed) return;
       try {
-        await orderService.cancel(btn.dataset.id);
+        await withButtonLoading(btn, () => orderService.cancel(btn.dataset.id), { loadingLabel: 'Cancelando…' });
         logAction({ action: 'Canceló', entity: 'pedido', entityId: btn.dataset.id });
         showToast({ type: 'success', message: 'Pedido cancelado.' });
         render(null, container);
@@ -91,7 +112,7 @@ function bindEvents(container, orders, products, customers, allOrders, customers
   });
 }
 
-async function handleDeliver(container, orders, orderId) {
+async function handleDeliver(container, orders, orderId, btn) {
   const order = orders.find((o) => o.id === orderId);
   const balance = calculateOrderBalance(order);
   const confirmed = await confirmAction({
@@ -102,7 +123,7 @@ async function handleDeliver(container, orders, orderId) {
   if (!confirmed) return;
 
   try {
-    await orderService.markDelivered(order.id);
+    await withButtonLoading(btn, () => orderService.markDelivered(order.id), { loadingLabel: 'Entregando…' });
     showToast({ type: 'success', message: 'Pedido entregado. Stock actualizado.' });
     render(null, container);
   } catch (err) {
@@ -207,7 +228,11 @@ function setupQuickAddCustomer(modalEl, customers) {
               if (err instanceof ValidationError) {
                 Object.entries(err.fieldErrors).forEach(([field, message]) => {
                   const el = form.querySelector(`[data-error-for="${field}"]`);
-                  if (el) { el.hidden = false; el.textContent = `⚠ ${message}`; }
+                  if (el) {
+                    el.hidden = false;
+                    el.textContent = '';
+                    el.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(message));
+                  }
                 });
               } else {
                 handleError(err, 'orders:quick-add-customer');
@@ -303,7 +328,8 @@ function paintFieldErrors(fieldErrors) {
     const input = document.getElementById(`f-${field}`);
     if (el) {
       el.hidden = false;
-      el.textContent = `⚠ ${message}`;
+      el.textContent = '';
+      el.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(message));
       if (!el.id) el.id = `error-${field}`;
     }
     if (input) {

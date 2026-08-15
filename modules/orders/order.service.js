@@ -40,6 +40,28 @@ export const orderService = {
     return order;
   },
 
+  /**
+   * Crea un pedido desde el checkout público (sin sesión). A diferencia de
+   * create(), nunca confía en un precio que venga del navegador: en modo
+   * Supabase, el precio se recalcula del lado del servidor dentro de
+   * create_public_order() (ver franthina_schema_v031_2_public_order_price.sql)
+   * — acá solo se manda productId + quantity por línea, nunca unitPrice.
+   * @param {{customerId:string, lines:{quantity:number, product:object}[], deliveryDate:string, notes:string}} data
+   */
+  async createFromPublicStore({ customerId, lines, deliveryDate, notes }) {
+    if (storage.supportsAtomicOps()) {
+      const items = lines.map((l) => ({ productId: l.product.id, quantity: l.quantity }));
+      const order = await storage.createPublicOrderAtomic({ customerId, items, deliveryDate, notes });
+      eventBus.emit(EVENTS.ORDER_CREATED, order);
+      return order;
+    }
+    // Modo local (sin Supabase): no hay función de servidor que ofrecer —
+    // se arma el pedido con el precio que ya trae el catálogo cargado en
+    // el navegador, mismo comportamiento que existía antes de esta versión.
+    const items = lines.map((l) => ({ productId: l.product.id, quantity: l.quantity, unitPrice: l.product.sellPrice }));
+    return this.create({ customerId, items, deliveryDate, depositAmount: 0, notes });
+  },
+
   async cancel(id) {
     const order = await storage.getById(ORDER_COLLECTION, id);
     if (!order) throw new NotFoundError('El pedido no existe.');
