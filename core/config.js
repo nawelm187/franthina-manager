@@ -10,7 +10,7 @@ export const APP_CONFIG = Object.freeze({
   // "appName" (que es el nombre de la herramienta interna, no de la marca).
   storeName: 'Franthina Repostería',
   storeTagline: 'Repostería artesanal, hecha a pedido',
-  version: '0.25.0',
+  version: '0.31.3',
   storageAdapter: 'supabase', // 'localStorage' | 'supabase'
   storagePrefix: 'franthina:',
   defaultCurrency: 'ARS',
@@ -35,11 +35,11 @@ export const ROUTES = Object.freeze({
   STORE_HOME: '/',
   STORE_CART: '/carrito',
 
-  // Administración — todo el sistema de gestión actual, ahora detrás de
-  // /admin. v0.19 es solo esta separación de rutas: la protección real con
-  // login llega en una versión futura (ver docs/ROADMAP si existe, o el
-  // historial de la conversación) — por ahora /admin es una URL más, no un
-  // área con acceso restringido de verdad.
+  // Administración — todo el sistema de gestión, detrás de /admin y
+  // protegido por login real (Supabase Auth) desde v0.25 — ver core/auth.js
+  // y el guard de core/router.js. Los roles/permisos por tipo de usuario
+  // (admin/encargado/empleado) todavía no se aplican: hoy cualquier cuenta
+  // con sesión tiene acceso completo — ver docs/ROADMAP.md.
   DASHBOARD: '/admin',
   PRODUCTS: '/admin/productos',
   PRODUCT_DETAIL: '/admin/productos/:id',
@@ -58,21 +58,23 @@ export const ROUTES = Object.freeze({
   SETTINGS: '/admin/configuracion',
 });
 
+// Nombres de Material Symbols (Google Fonts) — ver core/icons.js. No son
+// emojis: son el nombre del ícono que icon() busca en la fuente.
 export const NAV_ITEMS = Object.freeze([
-  { route: ROUTES.DASHBOARD, label: 'Panel principal', icon: '🏠' },
-  { route: ROUTES.SALES, label: 'Ventas', icon: '🛒' },
-  { route: ROUTES.ORDERS, label: 'Pedidos', icon: '📝' },
-  { route: ROUTES.CASHBOX, label: 'Caja', icon: '💰' },
-  { route: ROUTES.PRODUCTS, label: 'Productos', icon: '🧁' },
-  { route: ROUTES.INGREDIENTS, label: 'Ingredientes', icon: '🌾' },
-  { route: ROUTES.RECIPES, label: 'Recetas', icon: '📖' },
-  { route: ROUTES.PRODUCTION, label: 'Producción', icon: '🏭' },
-  { route: ROUTES.INVENTORY, label: 'Inventario', icon: '📦' },
-  { route: ROUTES.PURCHASES, label: 'Compras', icon: '🧾' },
-  { route: ROUTES.SUPPLIERS, label: 'Proveedores', icon: '🚚' },
-  { route: ROUTES.CUSTOMERS, label: 'Clientes', icon: '👥' },
-  { route: ROUTES.REPORTS, label: 'Reportes', icon: '📊' },
-  { route: ROUTES.SETTINGS, label: 'Configuración', icon: '⚙️' },
+  { route: ROUTES.DASHBOARD, label: 'Panel principal', icon: 'home' },
+  { route: ROUTES.SALES, label: 'Ventas', icon: 'shopping_cart' },
+  { route: ROUTES.ORDERS, label: 'Pedidos', icon: 'edit_note' },
+  { route: ROUTES.CASHBOX, label: 'Caja', icon: 'payments' },
+  { route: ROUTES.PRODUCTS, label: 'Productos', icon: 'bakery_dining' },
+  { route: ROUTES.INGREDIENTS, label: 'Ingredientes', icon: 'grass' },
+  { route: ROUTES.RECIPES, label: 'Recetas', icon: 'menu_book' },
+  { route: ROUTES.PRODUCTION, label: 'Producción', icon: 'factory' },
+  { route: ROUTES.INVENTORY, label: 'Inventario', icon: 'inventory_2' },
+  { route: ROUTES.PURCHASES, label: 'Compras', icon: 'receipt_long' },
+  { route: ROUTES.SUPPLIERS, label: 'Proveedores', icon: 'local_shipping' },
+  { route: ROUTES.CUSTOMERS, label: 'Clientes', icon: 'group' },
+  { route: ROUTES.REPORTS, label: 'Reportes', icon: 'bar_chart' },
+  { route: ROUTES.SETTINGS, label: 'Configuración', icon: 'settings' },
 ]);
 
 

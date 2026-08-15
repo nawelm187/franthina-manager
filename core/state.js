@@ -55,8 +55,14 @@ class Store {
    * es solo un microtask, ya que localStorage es síncrono por debajo.
    */
   async hydrateA11yPrefs() {
-    const saved = await storage.getMeta(META_KEYS.A11Y_PREFS);
-    if (saved) this.setState({ a11y: { ...DEFAULT_A11Y, ...saved } });
+    try {
+      const saved = await storage.getMeta(META_KEYS.A11Y_PREFS);
+      if (saved) this.setState({ a11y: { ...DEFAULT_A11Y, ...saved } });
+    } catch {
+      // Sin sesión (ej. visitante de la tienda): las preferencias de
+      // accesibilidad son un dato de administración — se queda con los
+      // valores por defecto, sin romper nada.
+    }
   }
 
   async setA11yPref(key, value) {
@@ -66,10 +72,24 @@ class Store {
     eventBus.emit(EVENTS.A11Y_PREFS_CHANGED, a11y);
   }
 
-  /** Se llama una única vez al arrancar la app, junto con hydrateA11yPrefs(). */
+  /** Se llama una única vez al arrancar la app, junto con hydrateA11yPrefs().
+   *  Un visitante de la tienda (sin sesión) no puede leer la configuración
+   *  administrativa completa — en ese caso cae a getPublicBusinessConfig(),
+   *  que solo expone lo que la tienda necesita mostrar (hoy: WhatsApp). */
   async hydrateBusinessSettings() {
-    const saved = await storage.getMeta(META_KEYS.BUSINESS_SETTINGS);
-    if (saved) this.setState({ business: { ...DEFAULT_BUSINESS_SETTINGS, ...saved } });
+    try {
+      const saved = await storage.getMeta(META_KEYS.BUSINESS_SETTINGS);
+      if (saved) {
+        this.setState({ business: { ...DEFAULT_BUSINESS_SETTINGS, ...saved } });
+        return;
+      }
+    } catch {
+      // Sin permiso de lectura (visitante sin sesión) — probar la vía pública.
+    }
+    if (typeof storage.getPublicBusinessConfig === 'function') {
+      const pub = await storage.getPublicBusinessConfig();
+      if (pub) this.setState({ business: { ...DEFAULT_BUSINESS_SETTINGS, ...pub } });
+    }
   }
 
   async setBusinessSetting(key, value) {

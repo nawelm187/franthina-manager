@@ -28,6 +28,26 @@ export function formatDate(isoString) {
   }).format(new Date(isoString));
 }
 
+/**
+ * "hace 12 minutos" / "hace 3 horas" / fecha corta si ya pasó más de una semana
+ * (a partir de ahí "hace X días" deja de ser información útil). Usado en el
+ * feed de Auditoría — mucho más fácil de escanear que una fecha/hora exacta
+ * cuando lo que importa es "¿esto fue reciente?".
+ */
+export function formatRelativeTime(isoString) {
+  if (!isoString) return '—';
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const diffSec = Math.round(diffMs / 1000);
+  if (diffSec < 60) return 'hace instantes';
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `hace ${diffMin} minuto${diffMin === 1 ? '' : 's'}`;
+  const diffHour = Math.round(diffMin / 60);
+  if (diffHour < 24) return `hace ${diffHour} hora${diffHour === 1 ? '' : 's'}`;
+  const diffDay = Math.round(diffHour / 24);
+  if (diffDay < 7) return `hace ${diffDay} día${diffDay === 1 ? '' : 's'}`;
+  return formatDate(isoString);
+}
+
 /** Retrasa la ejecución de una función hasta que dejen de llegar llamadas durante `wait` ms. */
 export function debounce(fn, wait = 300) {
   let timeoutId;
