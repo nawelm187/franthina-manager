@@ -5,6 +5,8 @@
 
 import { renderDataTable } from '../../components/dataTable.js';
 import { escapeHtml, formatDate, emptyStateMessage } from '../../core/utils.js';
+import { icon } from '../../core/icons.js';
+import { can } from '../../core/permissions.js';
 
 /** Renderiza solo la tabla — se reusa al buscar, para refrescar nada más
  *  que esta región y no pisar (ni hacerle perder el foco a) el buscador. */
@@ -18,10 +20,11 @@ export function renderCustomersTable({ customers: rows, searchTerm = '' }) {
     ],
     rows,
     emptyMessage: emptyStateMessage(searchTerm, 'Todavía no cargaste ningún cliente.'),
+    emptyAction: searchTerm ? null : { id: 'btn-empty-new-customer', label: 'Nuevo cliente' },
     rowActionsHtml: (row) => `
       <div class="row gap-2">
-        <button class="btn btn--ghost btn--icon-only" data-action="edit" data-id="${row.id}" aria-label="Editar ${escapeHtml(row.name)}">✏️</button>
-        <button class="btn btn--ghost btn--icon-only" data-action="delete" data-id="${row.id}" aria-label="Eliminar ${escapeHtml(row.name)}">🗑️</button>
+        <button class="btn btn--ghost btn--icon-only" data-action="edit" data-id="${row.id}" aria-label="Editar ${escapeHtml(row.name)}">${icon('edit')}</button>
+        ${can('delete') ? `<button class="btn btn--ghost btn--icon-only" data-action="delete" data-id="${row.id}" aria-label="Eliminar ${escapeHtml(row.name)}">${icon('delete')}</button>` : ''}
       </div>`,
   });
 }
@@ -34,7 +37,7 @@ export function renderCustomersPage(container, { customers, searchTerm = '' }) {
         <p>Datos de contacto de tus clientes para pedidos y seguimiento.</p>
       </div>
       <button class="btn btn--primary" id="btn-new-customer">
-        <span aria-hidden="true">➕</span> Nuevo cliente
+        ${icon('add')} Nuevo cliente
       </button>
     </header>
 

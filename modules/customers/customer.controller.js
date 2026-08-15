@@ -8,15 +8,18 @@ import { renderCustomersPage, renderCustomersTable, customerFormHtml } from './c
 import { createEmptyCustomer } from './customer.model.js';
 import { openModal } from '../../components/modal.js';
 import { confirmAction } from '../../components/confirm.js';
+import { withButtonLoading } from '../../core/buttonLoading.js';
 import { showToast } from '../../components/toast.js';
 import { handleError, ValidationError } from '../../core/errors.js';
 import { logAction } from '../../core/auditLog.js';
 import { debounce, normalizeForSearch } from '../../core/utils.js';
+import { iconElement } from '../../core/icons.js';
+import { skeletonTableHtml } from '../../components/skeletonTable.js';
 
 let searchTerm = '';
 
 export async function render(_params, container) {
-  container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
+  container.innerHTML = skeletonTableHtml();
 
   let customers = [];
   try {
@@ -44,8 +47,9 @@ function paintTable(container, displayedCustomers, allCustomers) {
 }
 
 function bindEvents(container, allCustomers) {
-  container.querySelector('#btn-new-customer')
-    ?.addEventListener('click', () => openCustomerForm(container, null));
+  ['#btn-new-customer', '#btn-empty-new-customer'].forEach((sel) => {
+    container.querySelector(sel)?.addEventListener('click', () => openCustomerForm(container, null));
+  });
 
   container.querySelector('#customer-search')
     ?.addEventListener('input', debounce((e) => {
@@ -77,7 +81,7 @@ function bindRowActions(container, displayedCustomers, allCustomers) {
       });
       if (!confirmed) return;
       try {
-        await customerService.remove(customer.id);
+        await withButtonLoading(btn, () => customerService.remove(customer.id), { loadingLabel: 'Eliminando…' });
         logAction({ action: 'Eliminó', entity: 'cliente', entityId: customer.id, details: customer.name });
         showToast({ type: 'success', message: `"${customer.name}" fue eliminado.` });
         render(null, container);
@@ -148,7 +152,8 @@ function paintFieldErrors(fieldErrors) {
     const input = document.getElementById(`f-${field}`);
     if (el) {
       el.hidden = false;
-      el.textContent = `⚠ ${message}`;
+      el.textContent = '';
+      el.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(message));
       if (!el.id) el.id = `error-${field}`;
     }
     if (input) {
