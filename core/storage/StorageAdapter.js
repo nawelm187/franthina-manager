@@ -32,4 +32,26 @@ export class StorageAdapter {
 
   /** @param {string} _key @param {any} _value @returns {Promise<void>} */
   async setMeta(_key, _value) { throw new Error('setMeta() no implementado'); }
+
+  /**
+   * Operaciones que necesitan una transacción real (bloqueo de filas +
+   * escritura atómica), no solo un patrón leer-calcular-guardar en
+   * JavaScript. Solo CloudStorageAdapter las implementa — Postgres tiene
+   * transacciones reales; localStorage no tiene con qué ofrecer la misma
+   * garantía (ver core/storage/atomicRun.js para el porqué del fallback en
+   * modo local). Cada Service que la necesita primero pregunta
+   * supportsAtomicOps() y si es false, sigue usando runAtomic() como hasta
+   * ahora.
+   * @returns {boolean}
+   */
+  supportsAtomicOps() { return false; }
+
+  /** @param {object} _saleData @param {{productId: string, quantity: number}[]} _items @returns {Promise<any>} */
+  async createSaleAtomic(_saleData, _items) { throw new Error('createSaleAtomic() no implementado'); }
+
+  /** @param {{orderId:string, requirements:object[], reasonText:string, productIds:string[], yieldTotal:number, completedAt:string}} _args @returns {Promise<any>} */
+  async completeProductionOrderAtomic(_args) { throw new Error('completeProductionOrderAtomic() no implementado'); }
+
+  /** @param {{customerId:string, items:{productId:string, quantity:number}[], deliveryDate:string, notes:string}} _args @returns {Promise<any>} */
+  async createPublicOrderAtomic(_args) { throw new Error('createPublicOrderAtomic() no implementado'); }
 }
