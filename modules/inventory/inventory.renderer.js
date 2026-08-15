@@ -6,6 +6,7 @@
 import { renderDataTable } from '../../components/dataTable.js';
 import { formatDate, escapeHtml } from '../../core/utils.js';
 import { MOVEMENT_TYPE_LABELS, MOVEMENT_TYPES } from './inventory.model.js';
+import { icon } from '../../core/icons.js';
 
 const TYPE_BADGE_VARIANT = {
   [MOVEMENT_TYPES.IN]: 'success',
@@ -22,7 +23,7 @@ export function renderInventoryPage(container, { movements, ingredientsById, sor
         <p>Historial de entradas, salidas, ajustes y mermas de ingredientes.</p>
       </div>
       <button class="btn btn--primary" id="btn-new-movement">
-        <span aria-hidden="true">➕</span> Registrar movimiento
+        ${icon('add')} Registrar movimiento
       </button>
     </header>
 
@@ -44,6 +45,7 @@ export function renderInventoryPage(container, { movements, ingredientsById, sor
         ],
         rows: movements,
         emptyMessage: 'Todavía no hay movimientos registrados.',
+        emptyAction: { id: 'btn-empty-new-movement', label: 'Registrar movimiento' },
       })}
     </div>
   `;

@@ -4,23 +4,23 @@
  */
 
 import { ValidationError } from '../../core/errors.js';
-import { isPositiveNumber, isOneOf } from '../../core/validators.js';
+import { isPositiveNumber, isOneOf, mustBePositiveMessage, invalidValueMessage, mustSelectMessage, FORM_HAS_ERRORS_MESSAGE } from '../../core/validators.js';
 import { MOVEMENT_TYPES } from './inventory.model.js';
 
 export function validateMovement(data) {
   const fieldErrors = {};
 
   if (!data.ingredientId) {
-    fieldErrors.ingredientId = 'Seleccioná un ingrediente.';
+    fieldErrors.ingredientId = mustSelectMessage('un ingrediente');
   }
   if (!isOneOf(data.type, Object.values(MOVEMENT_TYPES))) {
-    fieldErrors.type = 'Tipo de movimiento inválido.';
+    fieldErrors.type = invalidValueMessage('El tipo de movimiento');
   }
   if (!isPositiveNumber(data.quantity)) {
-    fieldErrors.quantity = 'La cantidad debe ser mayor a cero.';
+    fieldErrors.quantity = mustBePositiveMessage('La cantidad');
   }
 
   if (Object.keys(fieldErrors).length > 0) {
-    throw new ValidationError('Revisá los campos marcados en el formulario.', fieldErrors);
+    throw new ValidationError(FORM_HAS_ERRORS_MESSAGE, fieldErrors);
   }
 }

@@ -12,11 +12,13 @@ import { showToast } from '../../components/toast.js';
 import { sortRows, bindTableSorting } from '../../components/dataTable.js';
 import { handleError, ValidationError, InsufficientStockError } from '../../core/errors.js';
 import { debounce, normalizeForSearch } from '../../core/utils.js';
+import { iconElement } from '../../core/icons.js';
+import { skeletonTableHtml } from '../../components/skeletonTable.js';
 
 let sortState = { key: 'createdAt', direction: 'desc' };
 
 export async function render(_params, container) {
-  container.innerHTML = '<div class="state-panel"><div class="skeleton" style="width:100%;height:240px;"></div></div>';
+  container.innerHTML = skeletonTableHtml();
 
   let allMovements = [];
   let ingredients = [];
@@ -58,8 +60,9 @@ function bindEvents(container, ingredients, allMovements, ingredientsById) {
       paint(container, filtered, ingredients, allMovements);
     }, 250));
 
-  container.querySelector('#btn-new-movement')
-    ?.addEventListener('click', () => openMovementForm(container, ingredients));
+  ['#btn-new-movement', '#btn-empty-new-movement'].forEach((sel) => {
+    container.querySelector(sel)?.addEventListener('click', () => openMovementForm(container, ingredients));
+  });
 }
 
 function openMovementForm(container, ingredients) {
@@ -121,7 +124,8 @@ function paintFieldErrors(fieldErrors) {
     const input = document.getElementById(`f-${field}`);
     if (el) {
       el.hidden = false;
-      el.textContent = `⚠ ${message}`;
+      el.textContent = '';
+      el.append(iconElement('warning', { className: 'icon-inline' }), document.createTextNode(message));
       if (!el.id) el.id = `error-${field}`;
     }
     if (input) {
