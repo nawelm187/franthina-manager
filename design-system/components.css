@@ -423,6 +423,13 @@
   margin-top: auto;
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3);
   padding: var(--space-5) var(--space-6);
+  /* En páginas cortas (ej. la home con pocos productos), este footer queda
+     pegado justo contra el borde inferior real de la pantalla — ahí es
+     donde el navegador o el propio celular pone su barra de navegación
+     (los botones de atrás/inicio/recientes), que se come el toque antes de
+     que le llegue al link. Este padding extra deja un margen de aire real
+     para que "Panel de administración" quede tocable, no tapado. */
+  padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px) + 24px);
   border-top: var(--border-width) solid var(--surface-border);
   color: var(--text-secondary); font-size: var(--fs-sm);
 }
