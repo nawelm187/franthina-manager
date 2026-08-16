@@ -86,9 +86,18 @@ class Store {
     } catch {
       // Sin permiso de lectura (visitante sin sesión) — probar la vía pública.
     }
-    if (typeof storage.getPublicBusinessConfig === 'function') {
-      const pub = await storage.getPublicBusinessConfig();
-      if (pub) this.setState({ business: { ...DEFAULT_BUSINESS_SETTINGS, ...pub } });
+    try {
+      if (typeof storage.getPublicBusinessConfig === 'function') {
+        const pub = await storage.getPublicBusinessConfig();
+        if (pub) this.setState({ business: { ...DEFAULT_BUSINESS_SETTINGS, ...pub } });
+      }
+    } catch (err) {
+      // Si esto falla (ej. la función get_public_business_config() todavía
+      // no existe en la base), la app sigue arrancando igual con los valores
+      // por defecto — un dato de configuración que no cargó nunca debería
+      // tumbar el arranque completo de la aplicación. Se loguea para que no
+      // quede en silencio total, pero no se relanza.
+      console.error('[Franthina] No se pudo leer la configuración pública del negocio:', err);
     }
   }
 

@@ -10,7 +10,7 @@ export const APP_CONFIG = Object.freeze({
   // "appName" (que es el nombre de la herramienta interna, no de la marca).
   storeName: 'Franthina Repostería',
   storeTagline: 'Repostería artesanal, hecha a pedido',
-  version: '0.31.3',
+  version: '0.31.5',
   storageAdapter: 'supabase', // 'localStorage' | 'supabase'
   storagePrefix: 'franthina:',
   defaultCurrency: 'ARS',
