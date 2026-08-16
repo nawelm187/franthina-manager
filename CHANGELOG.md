@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.31.5] — Link "Panel de administración" tapado por la barra del celular
+Reportado en vivo: en la home de la tienda (poca altura de contenido) el
+link "Panel de administración" del pie de página no respondía al toque;
+desde el Carrito (página más alta) sí funcionaba. Causa: `.store-footer`
+usa `margin-top: auto` para quedar siempre al fondo de la pantalla — en
+una página corta, eso lo deja pegado justo contra el borde real inferior,
+que es donde el navegador o el propio celular pone su barra de
+navegación (atrás/inicio/recientes). Esa barra se come el toque antes de
+que le llegue al link.
+
+### Corregido
+- `design-system/components.css`: `.store-footer` suma un margen inferior
+  extra (`env(safe-area-inset-bottom)` + un colchón fijo) para que el
+  contenido nunca quede pegado contra el borde físico de la pantalla.
+- `index.html`: el viewport suma `viewport-fit=cover`, necesario para que
+  `env(safe-area-inset-bottom)` funcione en dispositivos con áreas
+  reservadas por el sistema (notch, barra de gestos) — sin esto, ese valor
+  siempre da 0 y el padding de arriba no hace nada en esos casos.
+
+## [0.31.4] — Arreglo de arranque: una función faltante no debe dejar la página en blanco
+Diagnosticado en vivo: la app se veía completamente en blanco al desplegar.
+La consola mostraba `get_public_business_config()` — la función de
+`franthina_schema_v029_1_security.sql` — no encontrada en el schema de
+Supabase (nunca se había corrido esa migración contra el proyecto real).
+Eso solo debería haber afectado la configuración pública del negocio (el
+número de WhatsApp), pero como nada atrapaba ese error, tumbaba el
+arranque completo de la aplicación.
+
+### Corregido
+- `core/state.js`: `hydrateBusinessSettings()` ahora atrapa el error de
+  `getPublicBusinessConfig()` por separado — si esa función no existe
+  todavía en la base (o falla por cualquier otro motivo), la app arranca
+  igual con los valores de configuración por defecto, en vez de quedar en
+  blanco.
+- `app.js`: `init()` ahora tiene un `.catch()` — antes se llamaba sin
+  ninguno, así que CUALQUIER error no contemplado durante el arranque
+  dejaba la página en blanco y en silencio (ver este mismo caso). Ahora
+  muestra un mensaje con botón de recargar en vez de nada.
+
+### Nota
+- El síntoma de fondo sigue sin resolver: para que "Configuración del
+  negocio" funcione en la tienda pública hace falta correr
+  `franthina_schema_v029_1_security.sql` (y el resto de las migraciones de
+  esta ronda) contra el proyecto real de Supabase — ver
+  `franthina_schema_CONSOLIDADO.sql`. Este arreglo evita que la falta de
+  esa migración rompa TODO lo demás, no la reemplaza.
+
 ## [0.31.3] — Checklist de seguridad consolidado
 Cierra (a medias, a propósito) el último punto de "Próximo enfoque
 recomendado": tests de seguridad RLS y end-to-end. Construir esa

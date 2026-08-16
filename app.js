@@ -381,4 +381,20 @@ async function init() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  init().catch((err) => {
+    // Si algo no contemplado revienta durante el arranque, mostrar ESTO en
+    // vez de dejar la página completamente en blanco y en silencio — lo que
+    // pasó recién con hydrateBusinessSettings() antes del try/catch de
+    // arriba es exactamente el escenario que esto cubre a futuro.
+    console.error('[Franthina] Error fatal al iniciar la aplicación:', err);
+    document.body.innerHTML = `
+      <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; font-family:sans-serif; text-align:center;">
+        <div>
+          <h1 style="margin:0 0 8px;">No pudimos cargar Franthina</h1>
+          <p style="color:#666; margin:0 0 16px;">Probá recargar la página. Si el problema sigue, revisá la consola del navegador para más detalle.</p>
+          <button onclick="location.reload()" style="padding:10px 20px; border-radius:8px; border:none; background:#7D2142; color:white; cursor:pointer;">Recargar</button>
+        </div>
+      </div>`;
+  });
+});
