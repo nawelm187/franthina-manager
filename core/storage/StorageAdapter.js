@@ -54,4 +54,10 @@ export class StorageAdapter {
 
   /** @param {{customerId:string, items:{productId:string, quantity:number}[], deliveryDate:string, notes:string}} _args @returns {Promise<any>} */
   async createPublicOrderAtomic(_args) { throw new Error('createPublicOrderAtomic() no implementado'); }
+
+  /** @returns {boolean} true si este adapter puede subir archivos de verdad a un backend (no solo guardar una URL de texto). */
+  supportsFileUploads() { return false; }
+
+  /** @param {File} _file @returns {Promise<string>} URL pública del archivo subido */
+  async uploadProductImage(_file) { throw new Error('uploadProductImage() no implementado'); }
 }

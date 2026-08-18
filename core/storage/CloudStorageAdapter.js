@@ -16,6 +16,7 @@
 import { StorageAdapter } from './StorageAdapter.js';
 import { supabase } from '../supabaseClient.js';
 import { StorageError, InsufficientStockError, NotFoundError } from '../errors.js';
+import { generateId } from '../utils.js';
 
 /** Traduce una fila de Postgres a la forma plana que ya esperan los Services. */
 function fromRow(row) {
@@ -164,6 +165,26 @@ export class CloudStorageAdapter extends StorageAdapter {
     if (error) throw parseAtomicPublicOrderError(error);
     const { id, created_at, updated_at, ...rest } = data;
     return { id, createdAt: created_at, updatedAt: updated_at, ...rest };
+  }
+
+  supportsFileUploads() { return true; }
+
+  /**
+   * Sube una imagen de producto al bucket público "product-images" (ver
+   * franthina_schema_v031_7_image_upload.sql) y devuelve su URL pública.
+   * Cada archivo se guarda con un nombre único — nunca se reemplaza uno
+   * existente, así que no hace falta política de UPDATE en el bucket.
+   */
+  async uploadProductImage(file) {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `products/${generateId()}.${ext}`;
+    const { error } = await supabase.storage.from('product-images').upload(path, file, {
+      contentType: file.type || 'image/jpeg',
+      cacheControl: '31536000', // un año — el nombre es único, el contenido de ese path nunca cambia
+    });
+    if (error) throw new StorageError(`No se pudo subir la imagen: ${error.message}`);
+    const { data } = supabase.storage.from('product-images').getPublicUrl(path);
+    return data.publicUrl;
   }
 }
 
