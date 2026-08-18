@@ -18,6 +18,7 @@ import { debounce, formatCurrency, normalizeForSearch, normalizeImageUrl } from 
 import { logAction } from '../../core/auditLog.js';
 import { iconElement } from '../../core/icons.js';
 import { skeletonTableHtml } from '../../components/skeletonTable.js';
+import { uploadProductImage } from '../../core/imageUpload.js';
 
 let sortState = { key: null, direction: 'asc' };
 let searchTerm = '';
@@ -156,6 +157,7 @@ function openProductForm(container, product, recipes, allProducts) {
     onMount: (modalEl) => {
       setupRecipeSync(modalEl, isEdit ? product.id : null);
       setupImagePreview(modalEl);
+      setupImageUpload(modalEl);
     },
     footerButtons: [
       { label: 'Cancelar', variant: 'secondary', onClick: (closeFn) => closeFn() },
@@ -256,6 +258,51 @@ function setupImagePreview(modalEl) {
     img.hidden = false;
   });
   input.addEventListener('input', update);
+}
+
+/**
+ * Zona de arrastrar-y-soltar (o tocar para elegir archivo) que sube la
+ * imagen y completa el campo de URL sola — dispara el mismo evento
+ * 'input' que setupImagePreview() ya escucha, así la vista previa se
+ * actualiza sin duplicar esa lógica acá.
+ */
+function setupImageUpload(modalEl) {
+  const dropzone = modalEl.querySelector('#image-dropzone');
+  const fileInput = modalEl.querySelector('#image-file-input');
+  const urlInput = modalEl.querySelector('#f-image');
+  if (!dropzone || !fileInput || !urlInput) return;
+
+  async function handleFile(file) {
+    if (!file) return;
+    const originalText = dropzone.querySelector('.image-dropzone__text').innerHTML;
+    dropzone.classList.add('is-uploading');
+    dropzone.querySelector('.image-dropzone__text').innerHTML = '<strong>Subiendo…</strong>';
+    try {
+      const url = await uploadProductImage(file);
+      urlInput.value = url;
+      urlInput.dispatchEvent(new Event('input', { bubbles: true }));
+    } catch (err) {
+      handleError(err, 'products:image-upload');
+    } finally {
+      dropzone.classList.remove('is-uploading');
+      dropzone.querySelector('.image-dropzone__text').innerHTML = originalText;
+      fileInput.value = ''; // permite volver a elegir el mismo archivo si hace falta reintentar
+    }
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+  });
+  fileInput.addEventListener('change', () => handleFile(fileInput.files?.[0]));
+
+  ['dragenter', 'dragover'].forEach((evt) => {
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('is-dragover'); });
+  });
+  ['dragleave', 'drop'].forEach((evt) => {
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('is-dragover'); });
+  });
+  dropzone.addEventListener('drop', (e) => handleFile(e.dataTransfer?.files?.[0]));
 }
 
 function setupRecipeSync(modalEl, existingProductId) {

@@ -135,15 +135,21 @@ export function productFormHtml(product, recipes) {
         <div class="field__hint">Esto lo ve cualquier visitante de la tienda — nunca el costo ni el stock exacto.</div>
       </div>
       <div class="field">
-        <label class="field__label" for="f-image">URL de una foto (opcional)</label>
-        <input class="input" type="url" id="f-image" name="imageUrl" value="${escapeHtml(product.imageUrl)}" placeholder="https://..." />
-        <div class="field__hint">
-          Pegá el link de una imagen ya subida a algún lado. Funciona con Imgur
+        <label class="field__label" for="f-image">Foto del producto (opcional)</label>
+        <div id="image-dropzone" class="image-dropzone" tabindex="0" role="button" aria-label="Subir una foto desde este dispositivo">
+          <input type="file" id="image-file-input" accept="image/*" hidden />
+          ${icon('upload', { className: 'icon-lg' })}
+          <p class="image-dropzone__text"><strong>Arrastrá una foto acá</strong> o tocá para elegirla</p>
+          <p class="field__hint" style="margin:0;">JPG, PNG o WEBP. Se comprime y se guarda automáticamente al elegirla.</p>
+        </div>
+        <div class="field__hint" style="margin-top: var(--space-2);">
+          ¿Preferís pegar un link en vez de subir el archivo? Funciona con Imgur
           o cualquier link que termine en <code>.jpg</code>/<code>.png</code>.
           Un link de Google Drive "Compartir" normal <strong>no funciona</strong>
           directo — necesitás el link "para ver" (click derecho en el archivo →
           Compartir → Copiar enlace, con acceso "Cualquier usuario con el enlace").
         </div>
+        <input class="input" type="url" id="f-image" name="imageUrl" value="${escapeHtml(product.imageUrl)}" placeholder="https://..." style="margin-top: var(--space-2);" />
         <div id="image-preview-wrap" ${product.imageUrl ? '' : 'hidden'} style="margin-top: var(--space-3);">
           <img id="image-preview" src="${escapeHtml(product.imageUrl)}" alt="" style="max-width: 160px; max-height: 160px; border-radius: var(--radius-md); border: var(--border-width) solid var(--surface-border); object-fit: cover; display: block;" />
           <div id="image-preview-error" class="field__error" hidden>${icon('warning', { className: 'icon-inline' })}Esta URL no cargó una imagen válida — probá con otro link (ver la ayuda de arriba).</div>
