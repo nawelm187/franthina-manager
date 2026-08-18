@@ -35,6 +35,7 @@
   display: grid;
   grid-template-columns: 260px 1fr;
   min-height: 100vh;
+  min-height: 100dvh; /* dvh: se ajusta bien cuando la barra del navegador aparece/desaparece en iOS Safari — 100vh sola deja saltos */
   /* Por defecto, un ítem de grid no puede achicarse más que el contenido
      más ancho que tenga adentro (min-width implícito = auto) — eso es lo
      que "empujaba" toda la página hacia la derecha en pantallas chicas.
@@ -64,6 +65,12 @@
     box-shadow: var(--shadow-lg);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    /* Mismo motivo que .store-footer más abajo: al estar fijo de punta a
+       punta (inset: 0 ... 0 0), el borde inferior de este panel siempre
+       coincide con el borde físico real de la pantalla — ahí es donde
+       vive el link "Cerrar sesión", el último ítem, y donde el celular
+       pone su barra de navegación encima. */
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px) + 24px);
   }
   .app-sidebar.is-open { transform: translateX(0); }
 }
@@ -384,6 +391,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh; /* dvh: se ajusta bien cuando la barra del navegador aparece/desaparece en iOS Safari — 100vh sola deja saltos */
 }
 
 .store-header {
@@ -617,6 +625,7 @@
 .login-main { display: flex; }
 .login-shell {
   min-height: 100vh; width: 100%;
+  min-height: 100dvh; /* dvh: se ajusta bien cuando la barra del navegador aparece/desaparece en iOS Safari — 100vh sola deja saltos */
   display: flex; align-items: center; justify-content: center;
   padding: var(--space-4);
   background: radial-gradient(ellipse at top, var(--color-vanilla) 0%, var(--surface-base) 70%);
@@ -687,3 +696,15 @@
   display: inline-block; background: var(--surface-sunken); border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-3); font-family: var(--font-mono, monospace); font-weight: var(--fw-semibold);
 }
+
+/* ============ SUBIR IMAGEN — arrastrar y soltar (v0.31.7) ============ */
+.image-dropzone {
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+  text-align: center; padding: var(--space-5); cursor: pointer;
+  border: 2px dashed var(--surface-border); border-radius: var(--radius-md);
+  color: var(--text-secondary); transition: border-color 0.15s, background 0.15s;
+}
+.image-dropzone:hover, .image-dropzone:focus-visible { border-color: var(--color-caramel); outline: none; }
+.image-dropzone.is-dragover { border-color: var(--color-caramel); background: var(--surface-sunken); }
+.image-dropzone.is-uploading { opacity: 0.6; pointer-events: none; }
+.image-dropzone__text { margin: 0; color: var(--text-primary); }
