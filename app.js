@@ -30,6 +30,7 @@ import { initToastListener, showToast } from './components/toast.js';
 import { storeCart } from './core/storeCart.js';
 import { auth } from './core/auth.js';
 import { currentUser } from './core/currentUser.js';
+import { initialStoreTheme, applyTheme, toggleStoreTheme } from './core/theme.js';
 import { renderLogin } from './modules/login/index.js';
 
 installGlobalErrorHandling();
@@ -129,6 +130,9 @@ function buildStoreChrome() {
         <nav class="store-nav" aria-label="Navegación de la tienda">
           ${STORE_NAV_ITEMS.map((item) => `
             <a class="nav-link" href="${withBase(item.route)}" data-link data-route="${item.route}">${item.label}</a>`).join('')}
+          <button type="button" class="btn btn--ghost btn--icon-only" id="btn-store-theme-toggle" aria-label="Cambiar a modo ${document.documentElement.classList.contains('theme-dark') ? 'claro' : 'oscuro'}">
+            ${icon(document.documentElement.classList.contains('theme-dark') ? 'light_mode' : 'dark_mode')}
+          </button>
           <a class="nav-link store-cart-link" href="${withBase(ROUTES.STORE_CART)}" data-link data-route="${ROUTES.STORE_CART}" aria-label="Ver carrito">
             ${icon('shopping_cart')} Carrito<span class="cart-badge" id="cart-badge" hidden>0</span>
           </a>
@@ -141,6 +145,11 @@ function buildStoreChrome() {
       </footer>
     </div>
   `;
+  document.getElementById('btn-store-theme-toggle')?.addEventListener('click', (e) => {
+    const next = toggleStoreTheme();
+    e.currentTarget.setAttribute('aria-label', `Cambiar a modo ${next === 'dark' ? 'claro' : 'oscuro'}`);
+    e.currentTarget.innerHTML = icon(next === 'dark' ? 'light_mode' : 'dark_mode');
+  });
   slotMainContent(document.querySelector('.store-shell'));
   mainContentEl.className = 'app-main';
   document.title = APP_CONFIG.storeName;
@@ -293,7 +302,13 @@ async function init() {
   mainContentEl.tabIndex = -1;
 
   initToastListener();
-  applyA11yPrefs(store.getState().a11y);
+  applyA11yPrefs({
+    ...store.getState().a11y,
+    // Sin sesión, a11y.theme nunca es una elección real — es el valor por
+    // defecto (DEFAULT_A11Y), porque hydrateA11yPrefs() no pudo leer nada.
+    // Ahí es donde entra la preferencia local de la tienda en su lugar.
+    theme: auth.getCachedSession() ? store.getState().a11y.theme : initialStoreTheme(),
+  });
   eventBus.on(EVENTS.A11Y_PREFS_CHANGED, applyA11yPrefs);
   eventBus.on(EVENTS.CART_CHANGED, updateCartBadge);
 
@@ -389,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // arriba es exactamente el escenario que esto cubre a futuro.
     console.error('[Franthina] Error fatal al iniciar la aplicación:', err);
     document.body.innerHTML = `
-      <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; font-family:sans-serif; text-align:center;">
+      <div style="min-height:100vh; min-height:100dvh; display:flex; align-items:center; justify-content:center; padding:24px; font-family:sans-serif; text-align:center;">
         <div>
           <h1 style="margin:0 0 8px;">No pudimos cargar Franthina</h1>
           <p style="color:#666; margin:0 0 16px;">Probá recargar la página. Si el problema sigue, revisá la consola del navegador para más detalle.</p>

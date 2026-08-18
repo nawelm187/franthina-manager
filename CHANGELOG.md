@@ -1,5 +1,128 @@
 # Changelog
 
+## [0.31.10] — Modo claro/oscuro para el cliente de la tienda
+Buena pregunta que destapó algo: el selector de tema en Configuración
+(Claro/Oscuro) existía y sí funcionaba — pero solo para quien tiene
+sesión de administrador. Un cliente navegando la tienda pública nunca
+tuvo forma de cambiarlo: `hydrateA11yPrefs()` no puede leer esa
+preferencia sin sesión (es un dato administrativo), así que la tienda
+siempre caía al modo claro por defecto, sin ningún control visible para
+la persona que la estaba mirando.
+
+### Agregado
+- `core/theme.js`: modo claro/oscuro específico para la tienda pública,
+  guardado por dispositivo (`localStorage`), no por cuenta — un visitante
+  sin sesión no tiene a qué cuenta atarle una preferencia sincronizada.
+  Si nunca lo tocó, arranca respetando el modo oscuro/claro que ya tenga
+  configurado el propio celular u OS (`prefers-color-scheme`) en vez de
+  forzar siempre claro.
+- Botón de sol/luna en el header de la tienda, al lado del carrito —
+  visible en cualquier pantalla de la tienda, no escondido en un menú.
+
+### Nota de diseño
+- Esto convive con el sistema existente sin tocarlo: si hay sesión de
+  administrador activa, sigue mandando la preferencia sincronizada de
+  Configuración (para no romper ese flujo ya armado); el mecanismo nuevo
+  solo entra a jugar cuando no hay sesión — que es exactamente el caso
+  que antes no tenía ninguna solución.
+
+## [0.31.9] — Repaso de compatibilidad multi-dispositivo
+No hubo un reporte puntual acá — fue en respuesta a la pregunta de si la
+app ya está bien optimizada para todos los dispositivos (celular, tablet,
+compu; Android, iOS, Windows, Linux). Repaso honesto: nada de esta sesión
+se probó en un dispositivo real, todo salió de leer código. Encontré y
+arreglé tres puntos concretos de riesgo real entre plataformas; el resto
+(diseño responsive, tamaño de los botones para el dedo, fuentes) ya
+estaba bien resuelto de antes.
+
+### Corregido
+- `100vh` en tres lugares (el layout general, el login, la pantalla de
+  error fatal) suma `100dvh` como mejora — en iOS Safari específicamente,
+  `100vh` no se ajusta bien cuando la barra de direcciones aparece o
+  desaparece al hacer scroll, dejando saltos o espacio de scroll de más.
+  `100dvh` sí se ajusta. Los navegadores que no lo entiendan (muy viejos)
+  simplemente lo ignoran y siguen usando `100vh` como antes.
+- `CloudStorageAdapter.uploadProductImage()` usaba `crypto.randomUUID()`
+  directo, sin el resguardo que `core/utils.js` ya tiene para navegadores
+  más viejos que no lo soportan (`generateId()`, con un formato alternativo
+  de respaldo). Ahora reusa ese helper en vez de duplicar el riesgo.
+
+### Confirmado, sin cambios necesarios
+- Los botones táctiles (48px) ya superan el mínimo de 44px que recomiendan
+  tanto Apple como Google para poder tocarlos con el dedo sin errar.
+- El resto de los elementos con `position: fixed` (modal, notificaciones)
+  no tienen el mismo riesgo que se corrigió en v0.31.5/v0.31.8 — ya
+  revisado en esa vuelta.
+
+## [0.31.8] — Comprimir fotos automáticamente + mismo arreglo del borde en el sidebar
+Dos mejoras encontradas revisando lo que se acababa de armar en v0.31.7,
+antes de que se conviertan en un problema real como pasó con el link del
+pie de página.
+
+### Agregado
+- `core/imageUpload.js`: las fotos se redimensionan (máx. 1600px de lado)
+  y se recomprimen como JPEG en el navegador (Canvas) antes de subirse.
+  Una cámara de celular normal saca fotos de 8-15 MB — sin esto, la
+  mayoría de las fotos reales hubieran rebotado contra el límite de
+  tamaño (5 MB en la nube, 1.5 MB en modo local) antes incluso de llegar a
+  subirse. Si la compresión falla por algún motivo (formato raro,
+  navegador viejo), se sube el archivo original tal cual en vez de romper
+  la subida entera.
+
+### Corregido
+- `.app-sidebar` (el menú del panel de administración en celular) tenía el
+  mismo problema que se arregló en v0.31.5 para el pie de la tienda: al
+  estar fijo de punta a punta de la pantalla, su borde inferior — donde
+  vive "Cerrar sesión" — siempre coincide con el borde físico real, que es
+  donde el celular pone su barra de navegación encima. Mismo arreglo:
+  margen de aire extra abajo, respetando `env(safe-area-inset-bottom)`.
+- Revisé el resto de los elementos con `position: fixed` del proyecto
+  (modal, notificaciones) — ninguno tiene el mismo riesgo: el modal queda
+  centrado con margen propio, y las notificaciones se autodescartan solas.
+
+## [0.31.7] — Subir fotos de producto desde el dispositivo
+Hasta ahora la única forma de poner una foto en un producto era pegar un
+link externo (Drive, Imgur) — nada de elegir un archivo directo desde el
+celular o la compu.
+
+### Agregado
+- `franthina_schema_v031_7_image_upload.sql`: crea el bucket público
+  `product-images` en Supabase Storage. Cualquiera puede ver las fotos
+  (son de productos para la tienda), solo una cuenta con sesión puede
+  subir una nueva, y solo admin/manager puede borrar una. A diferencia de
+  las migraciones anteriores, esto usa infraestructura estándar de
+  Supabase Storage — no una tabla propia del proyecto — así que se pudo
+  escribir con más confianza que las anteriores.
+- `core/imageUpload.js`: `uploadProductImage(file)` — sube el archivo a
+  Storage en modo Supabase y devuelve la URL pública; en modo local (sin
+  Supabase) no hay backend de archivos que ofrecer, así que convierte la
+  imagen a una data URL y la guarda embebida directo en el producto
+  (con un límite de tamaño bastante más chico, porque ahí sí ocupa
+  espacio real en el navegador).
+- Formulario de Productos: zona de arrastrar-y-soltar (o tocar para elegir
+  archivo) arriba del campo de URL — que sigue estando, para quien
+  prefiera seguir pegando un link a mano. Subir un archivo completa ese
+  mismo campo sola, así la vista previa que ya existía sigue funcionando
+  sin duplicar esa lógica.
+
+## [0.31.6] — Google Drive rompió sus propios links de imagen — arreglado
+Reportado en vivo: un link de Google Drive con los permisos bien
+configurados ("Cualquier usuario con el enlace") seguía sin cargar como
+imagen del producto. No era un problema de permisos ni de la app: Google
+discontinuó el formato `uc?export=view&id=...` que la app usaba para
+convertir el link — devuelve 403 ahora, por los cambios de Google en
+cookies de terceros. Confirmado buscando el problema: es un cambio del
+lado de Google, afecta a cualquier sitio que use ese formato viejo, no
+solo a Franthina.
+
+### Corregido
+- `normalizeImageUrl()` (`core/utils.js`) ahora convierte los links de
+  Drive al formato `thumbnail?id=...&sz=w1000`, que sigue funcionando.
+- De paso, también reconoce y corrige el formato viejo (`uc?export=view`)
+  si un producto ya se había guardado con eso — se arregla solo la
+  próxima vez que se muestra, sin que haga falta ir a re-pegar el link a
+  mano en cada producto.
+
 ## [0.31.5] — Link "Panel de administración" tapado por la barra del celular
 Reportado en vivo: en la home de la tienda (poca altura de contenido) el
 link "Panel de administración" del pie de página no respondía al toque;
