@@ -116,9 +116,21 @@ export function emptyStateMessage(term, baseMessage) {
  * Corrige automáticamente el link "Compartir" de Google Drive (que apunta a
  * una página de vista previa, no a la imagen en sí) al formato que sí sirve
  * como <img src>. Cualquier otro link se deja tal cual.
+ *
+ * Usa /thumbnail?id=...&sz=w1000, no /uc?export=view&id=... — ese segundo
+ * formato, más viejo y el que se ve en la mayoría de los tutoriales,
+ * Google lo rompió (devuelve 403) al discontinuar cookies de terceros.
+ * /thumbnail sigue andando bien al día de hoy.
  */
 export function normalizeImageUrl(url) {
-  const driveMatch = String(url ?? '').match(/drive\.google\.com\/file\/d\/([^/]+)/);
-  if (driveMatch) return `https://drive.google.com/uc?export=view&id=${driveMatch[1]}`;
+  const str = String(url ?? '');
+  // Link "Compartir" crudo de Drive (.../file/d/<ID>/view...)
+  const shareMatch = str.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (shareMatch) return `https://drive.google.com/thumbnail?id=${shareMatch[1]}&sz=w1000`;
+  // Productos guardados ANTES de este arreglo, con el formato viejo que
+  // Google rompió (uc?export=view&id=<ID>) — se corrigen solos la próxima
+  // vez que se abran, sin que haga falta ir a re-pegar el link a mano.
+  const legacyMatch = str.match(/drive\.google\.com\/uc\?export=view&id=([^&]+)/);
+  if (legacyMatch) return `https://drive.google.com/thumbnail?id=${legacyMatch[1]}&sz=w1000`;
   return url;
 }
