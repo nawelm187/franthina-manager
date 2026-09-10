@@ -26,7 +26,7 @@ tiene acceso completo. No crees cuentas para empleados todavía (ver
 `docs/ROADMAP.md`, "Usuarios y roles").
 
 ## Cómo ejecutarlo
-
+g
 Es una SPA 100% estática, sin build step. Necesita servirse por HTTP (no
 `file://`) porque usa ES Modules e IndexedDB/Service Worker.
 
